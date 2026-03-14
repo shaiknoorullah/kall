@@ -1,0 +1,29 @@
+pre-commit:
+  parallel: true
+  commands:
+    shellcheck:
+      glob: "*.sh"
+      run: shellcheck {staged_files}
+    shfmt:
+      glob: "*.sh"
+      run: shfmt -d -i 2 -ci {staged_files}
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        msg=$(head -1 "$1")
+        pattern='^(feat|fix|refactor|test|docs|chore|ci|perf|style|build)\((module|backend|plugin|lib|theme|installer|cli|docs|ci|schema)/[a-z0-9_-]+\): .+$'
+        if ! echo "$msg" | grep -qE "$pattern"; then
+          echo "ERROR: Commit message must match: type(area/name): description"
+          echo "  Types: feat, fix, refactor, test, docs, chore, ci, perf, style, build"
+          echo "  Areas: module, backend, plugin, lib, theme, installer, cli, docs, ci, schema"
+          echo "  Example: feat(module/clipboard): add image history support"
+          echo "  Got: $msg"
+          exit 1
+        fi
+
+pre-push:
+  commands:
+    tests:
+      run: ./tests/run_tests.sh
