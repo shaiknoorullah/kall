@@ -1,0 +1,320 @@
+---
+title: Platform Adapters
+description: WM and notification adapter interfaces, platform detection, and how to add a new adapter.
+---
+
+Platform adapters isolate kall from display-server-specific and OS-specific differences. Modules call unified lib functions; those functions delegate to the adapter loaded for the current environment. This page covers the WM adapter interface, notification adapter interface, platform detection, and how to write a new adapter.
+
+## WM Adapter Interface
+
+Every WM adapter in `lib/adapters/wm/` must implement five functions:
+
+| Function | Returns | Purpose |
+|---|---|---|
+| `wm_exit()` | exit code | Log out of the current WM session |
+| `wm_lock()` | exit code | Lock the screen |
+| `get_monitors()` | JSON array on stdout | List connected monitors with geometry |
+| `get_active_window()` | JSON object on stdout | Active window title, class, and PID |
+| `get_workspaces()` | JSON array on stdout | All workspaces with focus state |
+
+### Example: Hyprland Adapter
+
+From `lib/adapters/wm/hyprland.sh`:
+
+```bash
+wm_exit() {
+  hyprctl dispatch exit
+}
+
+wm_lock() {
+  if command -v hyprlock &>/dev/null; then
+    hyprlock
+  elif command -v swaylock &>/dev/null; then
+    swaylock
+  else
+    log_warn "wm_lock: no screen locker found"
+    return 1
+  fi
+}
+
+get_monitors() {
+  hyprctl monitors -j
+}
+
+get_active_window() {
+  hyprctl activewindow -j
+}
+
+get_workspaces() {
+  hyprctl workspaces -j
+}
+```
+
+### Example: Generic Fallback Adapter
+
+The `generic.sh` adapter implements the full interface with safe defaults. An unknown WM never prevents kall from running:
+
+```bash
+wm_exit() {
+  log_warn "wm_exit: no WM adapter configured; cannot exit"
+  return 1
+}
+
+wm_lock() {
+  if command -v hyprlock &>/dev/null; then
+    hyprlock
+  elif command -v swaylock &>/dev/null; then
+    swaylock
+  elif command -v i3lock &>/dev/null; then
+    i3lock
+  else
+    log_warn "wm_lock: no screen locker found (tried hyprlock, swaylock, i3lock)"
+    return 0
+  fi
+}
+
+get_monitors() {
+  echo '[{"name":"default","width":1920,"height":1080,"focused":true}]'
+}
+
+get_active_window() {
+  echo '{"title":"unknown","class":"unknown","pid":0}'
+}
+
+get_workspaces() {
+  echo '[{"id":1,"name":"1","focused":true}]'
+}
+```
+
+### Available WM Adapters
+
+| File | WM | Detection |
+|---|---|---|
+| `hyprland.sh` | Hyprland | `XDG_CURRENT_DESKTOP=Hyprland` |
+| `i3.sh` | i3 | `XDG_CURRENT_DESKTOP=i3` |
+| `sway.sh` | Sway | `XDG_CURRENT_DESKTOP=sway` |
+| `bspwm.sh` | bspwm | `XDG_CURRENT_DESKTOP=bspwm` |
+| `dwm.sh` | dwm | `XDG_CURRENT_DESKTOP=dwm` |
+| `macos.sh` | macOS | `uname` returns `Darwin` |
+| `generic.sh` | Any/fallback | Loaded when no specific adapter matches |
+
+## Notification Adapter Interface
+
+Every notify adapter in `lib/adapters/notify/` must implement one function:
+
+```bash
+_notify_send TITLE BODY [-i icon] [-t timeout] [-u urgency]
+```
+
+The `lib/notify.sh` file wraps this into convenience functions:
+
+```bash
+notify() {
+  _notify_send "$1" "${2:-}" -t 3000
+}
+
+notify_critical() {
+  _notify_send "$1" "${2:-}" -u critical
+}
+
+notify_with_icon() {
+  _notify_send "$1" "${2:-}" -i "${3:-}" -t 3000
+}
+```
+
+### Notification Adapter Selection
+
+The adapter is selected by `lib/platform.sh` at source time:
+
+```bash
+if [[ "$KALL_OS" == "darwin" ]]; then
+  source "$KALL_LIB_DIR/adapters/notify/macos.sh"
+elif command -v notify-send &>/dev/null; then
+  source "$KALL_LIB_DIR/adapters/notify/libnotify.sh"
+else
+  source "$KALL_LIB_DIR/adapters/notify/generic.sh"
+fi
+```
+
+| Adapter | Platform | Implementation |
+|---|---|---|
+| `libnotify.sh` | Linux with `notify-send` | Calls `notify-send` with `-i`, `-t`, `-u` flags |
+| `macos.sh` | macOS | Uses `osascript` to display notifications |
+| `generic.sh` | Any (fallback) | Prints `[notify:urgency] title: body` to stderr |
+
+## Platform Detection
+
+`lib/core.sh` detects three environment properties at source time:
+
+### OS Detection
+
+```bash
+_kall_detect_os() {
+  local kernel
+  kernel="$(uname)"
+  case "${kernel,,}" in
+    linux*)  echo "linux" ;;
+    darwin*) echo "darwin" ;;
+    *)       echo "linux" ;;
+  esac
+}
+```
+
+Exported as `KALL_OS`.
+
+### Session Type Detection
+
+```bash
+_kall_detect_session() {
+  if [[ "$KALL_OS" == "darwin" ]]; then
+    echo "darwin"
+    return
+  fi
+
+  case "${XDG_SESSION_TYPE:-}" in
+    wayland) echo "wayland" ;;
+    x11)     echo "x11" ;;
+    *)       echo "x11" ;;
+  esac
+}
+```
+
+Exported as `KALL_SESSION`. Used by `lib/platform.sh` to select the correct clipboard, screenshot, and wallpaper tools.
+
+### Window Manager Detection
+
+```bash
+_kall_detect_wm() {
+  if [[ "$KALL_OS" == "darwin" ]]; then
+    echo "macos"
+    return
+  fi
+
+  local desktop="${XDG_CURRENT_DESKTOP:-}"
+  case "${desktop,,}" in
+    hyprland) echo "hyprland" ;;
+    i3)       echo "i3" ;;
+    sway)     echo "sway" ;;
+    bspwm)    echo "bspwm" ;;
+    awesome)  echo "awesome" ;;
+    dwm)      echo "dwm" ;;
+    *)        echo "generic" ;;
+  esac
+}
+```
+
+Exported as `KALL_WM`. Used to load the correct WM adapter.
+
+## Platform Function Delegation
+
+`lib/platform.sh` provides unified functions that delegate based on `KALL_SESSION`:
+
+| Function | Wayland | X11 | macOS |
+|---|---|---|---|
+| `clipboard_copy()` | `wl-copy` | `xclip -selection clipboard` | `pbcopy` |
+| `clipboard_paste()` | `wl-paste` | `xclip -selection clipboard -o` | `pbpaste` |
+| `screenshot_full()` | `grim` | `maim` | `screencapture` |
+| `screenshot_area()` | `grim -g "$(slurp)"` | `maim -s` | `screencapture -s` |
+| `screenshot_window()` | `grim` + `hyprctl activewindow` | `maim -i $(xdotool)` | `screencapture -w` |
+| `set_wallpaper()` | `swww img` | `feh --bg-fill` | `osascript` |
+| `open_url()` | `xdg-open` | `xdg-open` | `open` |
+| `lock_screen()` | WM adapter `wm_lock()` | WM adapter `wm_lock()` | WM adapter `wm_lock()` |
+
+## How to Add a New WM Adapter
+
+1. **Create the adapter file** at `lib/adapters/wm/<wmname>.sh`
+
+2. **Add the source guard** to prevent double-sourcing:
+
+```bash
+#!/usr/bin/env bash
+# lib/adapters/wm/<wmname>.sh — <WM Name> adapter
+
+[[ -n "${_KALL_WM_WMNAME_LOADED:-}" ]] && return 0
+_KALL_WM_WMNAME_LOADED=1
+```
+
+3. **Implement all five interface functions.** Every function is required. If the WM does not support a particular action, return a non-zero exit code and log a warning:
+
+```bash
+wm_exit() {
+  # Your WM's logout command
+  wmname-msg exit
+}
+
+wm_lock() {
+  # Try known screen lockers in preference order
+  if command -v hyprlock &>/dev/null; then
+    hyprlock
+  else
+    log_warn "wm_lock: no compatible screen locker found"
+    return 1
+  fi
+}
+
+get_monitors() {
+  # Return JSON array of monitors
+  wmname-client monitors --json
+}
+
+get_active_window() {
+  # Return JSON object with title, class, pid
+  wmname-client active-window --json
+}
+
+get_workspaces() {
+  # Return JSON array of workspaces
+  wmname-client workspaces --json
+}
+```
+
+4. **Add WM detection** in `lib/core.sh`:
+
+```bash
+case "${desktop,,}" in
+  # ... existing entries ...
+  wmname) echo "wmname" ;;
+  *)      echo "generic" ;;
+esac
+```
+
+5. **Write tests** in `tests/test_wm_adapters.bats` covering all five functions with mocked WM commands.
+
+6. **All adapter functions must be idempotent.** Calling them multiple times with the same arguments must produce the same result.
+
+## How to Add a New Notification Adapter
+
+1. **Create the adapter file** at `lib/adapters/notify/<name>.sh`
+
+2. **Implement `_notify_send`** with the full parameter signature:
+
+```bash
+#!/usr/bin/env bash
+# lib/adapters/notify/<name>.sh
+
+[[ -n "${_KALL_NOTIFY_NAME_LOADED:-}" ]] && return 0
+_KALL_NOTIFY_NAME_LOADED=1
+
+_notify_send() {
+  local title="$1"
+  local body="$2"
+  shift 2
+
+  local icon="" timeout="" urgency=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -i) icon="$2"; shift 2 ;;
+      -t) timeout="$2"; shift 2 ;;
+      -u) urgency="$2"; shift 2 ;;
+      *)  shift ;;
+    esac
+  done
+
+  # Your notification implementation here
+}
+```
+
+3. **Add detection logic** in `lib/platform.sh` before the generic fallback.
+
+4. **Write tests** for the new adapter.
