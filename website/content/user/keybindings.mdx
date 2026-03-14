@@ -1,13 +1,15 @@
 ---
 title: Keybindings
-description: Bind kall modules to keyboard shortcuts across window managers using the normalized keybinding system.
+description: Normalized keybinding format, WM translation, injection, and export for all supported window managers.
 ---
 
-kall uses a normalized keybinding format that translates to the native syntax of each supported window manager. You define bindings once in `module.yml` using a generic modifier + key format, and kall generates WM-specific configuration lines that can be injected into your WM config file.
+kall uses a normalized keybinding format that translates automatically into the syntax required by each supported window manager. You define keybindings once — kall handles the rest.
 
-## Keybinding format
+---
 
-Keybindings are declared in each module's `module.yml` under the `keybinding` key:
+## Normalized format
+
+Every module declares its keybinding in `module.yml` using a simple, WM-agnostic format:
 
 ```yaml
 keybinding:
@@ -15,197 +17,168 @@ keybinding:
   key: e
 ```
 
-The `mods` array accepts these normalized modifier names:
+This means "mod + shift + e" regardless of which window manager you use.
 
-| Modifier | Meaning |
+### Available modifiers
+
+| Modifier | Description |
 |---|---|
-| `mod` / `super` | The Super/Windows/Command key |
+| `mod` | The WM's primary modifier (`$mod` in i3/sway, `$mainMod` in Hyprland) |
 | `shift` | Shift key |
 | `ctrl` | Control key |
-| `alt` | Alt/Option key |
+| `alt` | Alt/Meta key |
+| `super` | Super/Windows/Command key |
 
-The `key` field is the literal key name (e.g., `e`, `Return`, `1`, `space`).
+The `key` field is a single key in lowercase (e.g., `e`, `space`, `1`, `Return`).
 
-## Managing keybindings
+---
 
-kall provides four subcommands for keybinding management:
-
-### Show keybindings
-
-Display all module keybindings translated for the detected window manager:
+## CLI commands
 
 ```bash
-kall keybinds show
+kall keybinds show                # Print keybindings for your detected WM
+kall keybinds export hyprland     # Print in Hyprland format to stdout
+kall keybinds inject              # Auto-detect WM and inject into config
+kall keybinds inject --wm sway    # Inject for a specific WM
+kall keybinds remove              # Remove injected kall block from WM config
 ```
 
-Output example on Hyprland:
+---
 
-```
-power:       bind = $mainMod SHIFT, E, exec, kall power
-clipboard:   bind = $mainMod, V, exec, kall clipboard
-screenshot:  bind = $mainMod, PRINT, exec, kall screenshot
-```
+## Supported window managers
 
-### Inject keybindings
+| WM | Config file | Injection method |
+|---|---|---|
+| Hyprland | `~/.config/hypr/hyprland.conf` | Append block |
+| i3 | `~/.config/i3/config` | Append block |
+| sway | `~/.config/sway/config` | Append block |
+| bspwm (sxhkd) | `~/.config/sxhkd/sxhkdrc` | Append block |
+| awesome | `~/.config/awesome/rc.lua` | Append block |
+| skhd (macOS) | `~/.config/skhd/skhdrc` | Append block |
 
-Write keybinding lines into your WM configuration file:
+If your WM is not in this list, `kall keybinds show` prints the keybindings in a readable format so you can add them manually.
+
+---
+
+## Translation examples
+
+Given a module with `mods: [mod, shift], key: e` bound to `kall power`, here is what kall generates for each WM:
+
+### Hyprland
 
 ```bash
-kall keybinds inject
-```
-
-Injected bindings are wrapped in block markers so kall can locate and update them later:
-
-```
-# >>> kall keybinds >>>
 bind = $mainMod SHIFT, E, exec, kall power
-bind = $mainMod, V, exec, kall clipboard
-bind = $mainMod, PRINT, exec, kall screenshot
+```
+
+Modifiers are uppercased and space-separated. The key is uppercased. The command follows `exec,`.
+
+### i3 / sway
+
+```bash
+bindsym $mod+Shift+e exec kall power
+```
+
+Modifiers are joined with `+`. `mod` becomes `$mod`, `alt` becomes `Mod1`.
+
+### bspwm (sxhkd)
+
+```bash
+super + shift + e
+	kall power
+```
+
+Modifiers are space-separated with `+`. The command is indented on the next line.
+
+### awesome
+
+```bash
+awful.key({ modkey, "Shift" }, "e", function() awful.spawn("kall power") end)
+```
+
+Modifiers are Lua table entries. `mod` becomes `modkey`, others are quoted strings.
+
+### skhd (macOS)
+
+```bash
+shift + cmd - e : kall power
+```
+
+`mod`/`super` becomes `cmd`. Modifiers are `+` separated before the key, with ` - ` before the key and ` : ` before the command.
+
+---
+
+## More translation examples
+
+| Normalized | Hyprland | i3/sway |
+|---|---|---|
+| `mods: [mod], key: space` | `bind = $mainMod, SPACE, exec, kall launcher` | `bindsym $mod+space exec kall launcher` |
+| `mods: [mod, ctrl], key: b` | `bind = $mainMod CTRL, B, exec, kall bluetooth` | `bindsym $mod+Ctrl+b exec kall bluetooth` |
+| `mods: [mod, shift], key: s` | `bind = $mainMod SHIFT, S, exec, kall screenshot` | `bindsym $mod+Shift+s exec kall screenshot` |
+
+---
+
+## Injection behavior
+
+When you run `kall keybinds inject`, kall:
+
+1. Detects your window manager (or uses the `--wm` flag).
+2. Locates the WM config file.
+3. Shows the keybindings it will inject and asks for confirmation.
+4. Writes the keybindings inside a clearly marked block.
+
+The injected block looks like this (Hyprland example):
+
+```bash
+# >>> kall keybinds >>>
+bind = $mainMod, SPACE, exec, kall launcher
+bind = $mainMod SHIFT, E, exec, kall power
+bind = $mainMod SHIFT, S, exec, kall screenshot
 # <<< kall keybinds <<<
 ```
 
-The block markers (`# >>> kall keybinds >>>` and `# <<< kall keybinds <<<`) are preserved across re-injections. Running `inject` again replaces the block contents with the current set of module keybindings.
+### Idempotent injection
 
-### Export keybindings
+Running `kall keybinds inject` again replaces the existing block. It never duplicates entries. This means you can safely re-run injection after adding or removing modules.
 
-Print keybinding lines to stdout without modifying any file:
-
-```bash
-kall keybinds export
-```
-
-This is useful for manual pasting or piping into other tools.
-
-### Remove keybindings
-
-Remove the kall keybinding block from your WM configuration:
+### Removing keybindings
 
 ```bash
 kall keybinds remove
 ```
 
-This deletes everything between the block markers (inclusive), leaving the rest of your config untouched.
+This strips the marked block from your WM config file cleanly, leaving the rest of your config untouched.
 
-## Supported window managers
+### Installer integration
 
-kall translates keybindings for six window managers and compositors. The translation is handled by `_translate_keybind()` in `lib/keybinds.sh`. Given the example binding `mods: [mod, shift]`, `key: e`, `command: kall power`, each WM produces:
+The installer wizard (step 7) offers to run `kall keybinds inject` automatically after installation. You can always do it later with `kall keybinds inject`.
 
-### Hyprland
+---
 
-```ini
-bind = $mainMod SHIFT, E, exec, kall power
-```
+## Custom keybindings
 
-Config file: `~/.config/hypr/hyprland.conf`
-
-Modifiers are translated to Hyprland's format: `mod`/`super` becomes `$mainMod`, keys are uppercased, and the command is prefixed with `exec,`.
-
-### i3
-
-```ini
-bindsym $mod+Shift+e exec kall power
-```
-
-Config file: `~/.config/i3/config`
-
-Modifiers are joined with `+`: `mod`/`super` becomes `$mod`, `shift` becomes `Shift`, `alt` becomes `Mod1`. The key follows directly after.
-
-### sway
-
-```ini
-bindsym $mod+Shift+e exec kall power
-```
-
-Config file: `~/.config/sway/config`
-
-Sway uses the same syntax as i3. The translation function handles both identically.
-
-### bspwm (sxhkd)
-
-```
-super + shift + e
-	kall power
-```
-
-Config file: `~/.config/sxhkd/sxhkdrc`
-
-bspwm uses sxhkd for keybindings. Modifiers are space-separated with ` + ` between them, and the command is indented on the next line with a tab.
-
-### awesome
-
-```lua
-awful.key({ modkey, "Shift" }, "e", function() awful.spawn("kall power") end)
-```
-
-Config file: `~/.config/awesome/rc.lua`
-
-Modifiers are listed in a Lua table: `mod`/`super` becomes `modkey`, others are quoted strings. The command is wrapped in `awful.spawn()`.
-
-### skhd (macOS)
-
-```
-shift + cmd - e : kall power
-```
-
-Config file: `~/.config/skhd/skhdrc`
-
-macOS uses skhd for keyboard shortcuts. `mod`/`super` becomes `cmd`, modifiers use ` + ` separators, a ` - ` precedes the key, and ` : ` separates the key from the command.
-
-## Translation details
-
-The `_translate_keybind` function in `lib/keybinds.sh` accepts four arguments:
-
-```bash
-_translate_keybind WM MODS_CSV KEY COMMAND
-```
-
-- **WM** -- one of: `hyprland`, `i3`, `sway`, `bspwm`, `awesome`, `skhd`
-- **MODS_CSV** -- comma-separated modifiers: `mod,shift` or `mod`
-- **KEY** -- the key to bind: `e`, `Return`, `1`, etc.
-- **COMMAND** -- the full command: `kall power`
-
-For unrecognized window managers, the function outputs a comment:
-
-```bash
-# kall power (bind mod,shift + e)
-```
-
-## Example module keybindings
-
-Here are typical keybindings across several modules:
-
-| Module | Mods | Key | What it does |
-|---|---|---|---|
-| power | mod, shift | e | Open the power menu |
-| clipboard | mod | v | Open clipboard history |
-| screenshot | mod | Print | Open the screenshot menu |
-| wallpaper | mod, shift | w | Open the wallpaper browser |
-| websearch | mod | s | Open web search |
-| emoji | mod | period | Open the emoji picker |
-
-Each module ships its own default keybinding in `module.yml`. Users can override these defaults per-module in `kall.yml`:
+Module keybindings are defined by module authors in `module.yml`. Groups can also have keybindings:
 
 ```yaml
-modules:
+# modules/groups/system.yml
+keybinding:
+  mods: [mod, shift]
+  key: s
+```
+
+To override a module's default keybinding, use `module_overrides` in `kall.yml`:
+
+```yaml
+module_overrides:
   power:
     keybinding:
       mods: [mod, ctrl]
-      key: q
+      key: p
 ```
 
-## Multiple WMs
+After changing keybindings, re-run `kall keybinds inject` to update your WM config.
 
-If you use different WMs on different machines (e.g., Hyprland at home, i3 at work), kall auto-detects the active WM via `XDG_CURRENT_DESKTOP` and translates keybindings accordingly. The normalized format in `module.yml` stays the same -- only the generated output changes.
+---
 
-## Manual configuration
+## Adding support for a new WM
 
-You are not required to use `kall keybinds inject`. You can copy the output of `kall keybinds export` and paste it into your WM config manually. The `export` command is a read-only operation that makes no changes to your system.
-
-For WMs not in the supported list, `kall keybinds export` prints a commented format that documents the intended binding:
-
-```bash
-# kall power (bind mod,shift + e)
-# kall clipboard (bind mod + v)
-```
-
-You can then translate these comments to your WM's native syntax.
+The translation logic lives in `lib/keybinds.sh`. Adding support for a new WM requires only adding a translator function — no changes to `module.yml` files or any module code. See the [module authoring documentation](/module-authors) for details.

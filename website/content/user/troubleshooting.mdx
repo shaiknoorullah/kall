@@ -1,203 +1,161 @@
 ---
 title: Troubleshooting
-description: Debug mode, log files, kall doctor, log rotation, and common issues.
+description: Debug mode, log files, kall doctor, and solutions for common issues.
 ---
-
-When something goes wrong with kall, the structured logging system and built-in diagnostic tool provide the information needed to identify and resolve problems.
 
 ## Debug mode
 
-Run any kall command with the `--debug` flag to enable verbose diagnostic output:
+kall has three ways to enable debug logging, from temporary to persistent:
+
+### Per-invocation flag
 
 ```bash
 kall --debug power
-kall --debug clipboard
-kall --debug doctor
 ```
 
-Debug mode sets the log level to `DEBUG` (numeric level 1), which causes two things:
+### Environment variable
 
-1. **All log messages** (including `TRACE` and `DEBUG`) are written to `debug.log`
-2. **Debug-level messages** include the source file and line number in the log format
-
-Normal log format (INFO and above):
-
-```
-[INFO] 2026-03-14 12:30:45  clipboard module loaded
+```bash
+KALL_LOG_LEVEL=DEBUG kall power
 ```
 
-Debug log format (DEBUG and TRACE):
+For the most detailed output, use `TRACE`:
 
-```
-[DEBUG] 2026-03-14 12:30:45.123 core.sh:42  OS=linux SESSION=wayland WM=hyprland BACKEND=rofi THEME=catppuccin-mocha
-[TRACE] 2026-03-14 12:30:45.124 platform.sh:51  clipboard_copy dispatching to wl-copy
+```bash
+KALL_LOG_LEVEL=TRACE kall clipboard
 ```
 
-The millisecond timestamp and `file:line` reference make it possible to trace exactly which code path executed.
+### Persistent in kall.yml
+
+```yaml
+logging:
+  level: DEBUG
+```
+
+When debug mode is active, kall outputs detailed diagnostic information including which adapter loaded, how the config was parsed, what tools were resolved, and the full function call chain.
+
+### Log levels
+
+| Level | What it shows |
+|---|---|
+| `TRACE` | Fine-grained execution flow — function entry/exit, variable values |
+| `DEBUG` | Diagnostic info — adapter loaded, config parsed, tool resolved |
+| `INFO` | Normal events — module started, theme applied (default) |
+| `WARN` | Recoverable issues — fallback used, optional dep missing |
+| `ERROR` | Failures that stop the current operation |
+| `FATAL` | Unrecoverable failures that stop kall entirely |
+
+---
 
 ## Log files
 
-kall writes logs to `$XDG_STATE_HOME/kall/logs/`, which defaults to `~/.local/state/kall/logs/`. Two log files are maintained:
+### User log
 
-### kall.log
-
-The primary log file. It receives messages at `INFO` level and above (`INFO`, `WARN`, `ERROR`, `FATAL`). Debug and trace messages are never written here, per invariant INV-LOG-02.
-
-```bash
-tail -50 ~/.local/state/kall/logs/kall.log
+```
+$XDG_STATE_HOME/kall/kall.log
 ```
 
-### debug.log
+This log captures `INFO` level and above during normal operation. It is automatically rotated when it exceeds 1 MB, keeping 3 rotated files (`kall.log.1`, `kall.log.2`, `kall.log.3`). Rotation is handled internally — no external logrotate dependency.
 
-The verbose log file. It receives all log levels (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`), but only when debug mode is active (log level set to `DEBUG` or `TRACE`).
+### Debug log
 
-```bash
-tail -100 ~/.local/state/kall/logs/debug.log
+```
+$XDG_STATE_HOME/kall/debug.log
 ```
 
-If you have never run kall in debug mode, `debug.log` may not exist.
+This log captures all levels (`TRACE` and above) but only when debug mode is active. It is automatically deleted after 24 hours of inactivity. Not rotated — capture what you need while debugging.
 
-### Log level hierarchy
+### Log format
 
-| Level | Numeric | Written to kall.log | Written to debug.log | Shown on stderr |
-|---|---|---|---|---|
-| `TRACE` | 0 | No | Yes (if debug active) | Only if log level is TRACE |
-| `DEBUG` | 1 | No | Yes (if debug active) | Only if log level is DEBUG or lower |
-| `INFO` | 2 | Yes | Yes (if debug active) | If log level is INFO or lower |
-| `WARN` | 3 | Yes | Yes (if debug active) | If log level is WARN or lower |
-| `ERROR` | 4 | Yes | Yes (if debug active) | Always |
-| `FATAL` | 5 | Yes | Yes (if debug active) | Always (then exits) |
+User-facing logs (INFO and above) are clean:
 
-`ERROR` and `FATAL` messages are always shown on stderr regardless of the configured log level.
+```
+[INFO]  2026-03-14 10:32:01  power: lock screen via hyprlock
+[WARN]  2026-03-14 10:32:02  clipboard: rofi-blocks not found, falling back to fzf
+[ERROR] 2026-03-14 10:32:03  screenshot: grim failed (exit 127) — is it installed?
+```
+
+Debug logs include full context:
+
+```
+[TRACE] 2026-03-14 10:32:01.423  core.sh:42       detect_session() -> wayland
+[DEBUG] 2026-03-14 10:32:01.425  menu.sh:18       loading backend adapter: backends/rofi/adapter.sh
+[DEBUG] 2026-03-14 10:32:01.430  platform.sh:55   wm adapter: hyprland
+```
+
+### Log configuration
+
+Control logging behavior in `kall.yml`:
+
+```yaml
+logging:
+  level: INFO          # Minimum level: TRACE | DEBUG | INFO | WARN | ERROR | FATAL
+  file: true           # Write to kall.log (false = stderr only)
+  max_size_mb: 1       # Rotate threshold in megabytes
+  keep_rotated: 3      # Number of rotated files to keep
+```
+
+---
 
 ## kall doctor
 
-The `doctor` command performs a comprehensive health check of your kall installation:
+The built-in diagnostic tool checks your installation:
 
 ```bash
 kall doctor
 ```
 
-It validates:
+It verifies:
 
-- **Configuration** -- checks that `kall.yml` exists and parses correctly against the config schema
-- **Core dependencies** -- verifies that `yq` and `jq` are installed
-- **Menu backend** -- checks that the configured backend binary exists
-- **Module dependencies** -- for each installed module, checks that all declared `requires.adapter_tools` for the current session type are installed
-- **Palette validity** -- validates palette files against `schemas/palette.schema.yml`
-- **Config version** -- detects outdated `kall.yml` format and suggests migration steps
+- **Dependencies** — all framework deps (`yq`, `jq`, menu backend) and per-module deps are installed.
+- **Configuration** — `kall.yml` validates against the config schema.
+- **Modules** — all listed modules exist and have valid `module.yml` files.
+- **Theme** — the active palette exists and contains all required color variables.
+- **Log files** — reports log file sizes and rotation status.
+- **Platform** — detects display server and window manager.
 
-Example output:
+Run `kall doctor` after installation, after updates, or any time something seems wrong.
 
-```
-[OK]   kall.yml found at ~/.config/kall/kall.yml
-[OK]   yq installed (v4.35.1)
-[OK]   jq installed (jq-1.7)
-[OK]   rofi installed
-[OK]   Module: power -- all deps satisfied
-[OK]   Module: clipboard -- all deps satisfied
-[WARN] Module: screenshot -- missing: slurp (wayland area selection)
-[OK]   Palette: catppuccin-mocha -- valid
-[OK]   Config version: current
-```
-
-Warnings indicate optional or degraded functionality. Errors indicate problems that will prevent modules from working.
-
-## Log rotation
-
-kall rotates `kall.log` when it exceeds the configured size threshold. Rotation is handled by `_kall_log_rotate()` in `lib/log.sh`.
-
-### How it works
-
-1. At startup, kall checks the size of `kall.log`
-2. If the file exceeds `KALL_LOG_MAX_SIZE_MB` (default: 1 MB), rotation triggers
-3. Existing rotated files are shifted: `kall.log.2` becomes `kall.log.3`, `kall.log.1` becomes `kall.log.2`
-4. The current `kall.log` becomes `kall.log.1`
-5. A new empty `kall.log` is created for future writes
-6. Files beyond `KALL_LOG_KEEP_ROTATED` (default: 3) are deleted
-
-### Configuration
-
-Control rotation behavior in `kall.yml`:
-
-```yaml
-logging:
-  max_size_mb: 1       # Rotate when kall.log exceeds 1 MB
-  keep_rotated: 3      # Keep kall.log.1, kall.log.2, kall.log.3
-```
-
-### Invariants
-
-- **INV-LOG-03:** Log rotation never blocks startup. The rotation function catches all errors and continues silently.
-- Rotation uses `stat` for file size checks, with a macOS-compatible fallback (`stat -f%z` vs `stat -c%s`).
+---
 
 ## Common issues
 
-### Module fails with "backend adapter not found"
+### Menu does not appear
 
-The configured `menu_backend` in `kall.yml` does not match any installed backend. Check the value:
+1. Check that your menu backend is installed: `which rofi` (or your configured backend).
+2. Verify the backend setting: check `menu_backend` in `kall.yml`.
+3. Run with debug mode: `kall --debug launcher` and check the output.
 
-```bash
-grep menu_backend ~/.config/kall/kall.yml
-```
+### Keybindings not working
 
-Valid backends: `rofi`, `wofi`, `fuzzel`, `tofi`, `dmenu`, `fzf`. Make sure the corresponding binary is installed.
+1. Verify injection: open your WM config and look for the `# >>> kall keybinds >>>` block.
+2. Re-inject: `kall keybinds inject` (safe to re-run — it replaces the existing block).
+3. Reload your WM config (e.g., `hyprctl reload` or `i3-msg reload`).
 
-### "yq not found" errors
+### Theme not applying
 
-kall requires `yq` (the Go-based YAML processor by Mike Farah) for configuration parsing. Install it:
+1. Verify the palette exists: `kall theme list`.
+2. Re-set the theme: `kall theme set <name>`.
+3. Check that `appearance.managed` is not set to `false` in `kall.yml`.
 
-```bash
-# Arch
-pacman -S go-yq
+### Wallbash not working
 
-# macOS
-brew install yq
+1. Check that ImageMagick is installed: `which convert` or `which magick`.
+2. Verify wallbash is enabled: `dynamic_theme: true` in `kall.yml` or `kall theme wallbash on`.
+3. Make sure a wallpaper is set. Wallbash falls back to the static palette if no wallpaper is detected.
 
-# Other
-# Download from https://github.com/mikefarah/yq/releases
-```
+### Module reports missing dependency
 
-Do not confuse it with the Python-based `yq` wrapper around `jq`. kall requires the Go binary.
+1. Run `kall doctor` to see all missing deps.
+2. Install the missing package with your system package manager.
+3. Some deps are optional — the module will work with reduced functionality.
 
-### Theme colors not applying
+### Config validation errors
 
-1. Check that your palette file is valid: `kall doctor`
-2. Regenerate backend themes: `./backends/generate-themes.sh`
-3. If using wallbash, verify ImageMagick is installed: `command -v convert`
+1. Run `kall doctor` to see the specific validation error.
+2. Check `kall.yml` syntax — a common issue is incorrect indentation.
+3. kall falls back to built-in defaults for any invalid values, so it will still start.
 
-### Keybindings not working after inject
+---
 
-1. Verify the keybindings were written: search for `>>> kall keybinds >>>` in your WM config
-2. Reload your WM config (e.g., `hyprctl reload` for Hyprland, `i3-msg reload` for i3)
-3. Check that the `kall` binary is in your PATH from the WM's perspective
-
-### Module shows no menu items
-
-1. Run in debug mode: `kall --debug <module>`
-2. Check `debug.log` for errors during menu construction
-3. Verify required tools are installed: `kall doctor`
-
-### Permission denied errors
-
-kall never requires root privileges for normal operation. If you see permission errors:
-
-1. Check file ownership: `ls -la ~/.config/kall/`
-2. Ensure XDG directories are writable
-3. If using the curl installer, do not pipe through `sudo bash`
-
-### High disk usage from logs
-
-If log files grow too large, reduce the rotation threshold or disable file logging:
-
-```yaml
-logging:
-  max_size_mb: 1
-  keep_rotated: 1
-```
-
-To clean up existing logs manually:
-
-```bash
-rm -f ~/.local/state/kall/logs/*.log*
-```
+This section will grow as issues are reported. If you encounter a problem not listed here, run `kall --debug <command>` and check the log output for clues.
