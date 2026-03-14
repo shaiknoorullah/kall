@@ -1,0 +1,113 @@
+# schemas/kall.schema.yml — Schema definition for kall.yml configuration
+#
+# All fields are optional. kall MUST start with an empty or missing config
+# (INV-CFG-02) and apply sensible defaults for every value.
+
+schema:
+  version: "1.0"
+  description: "kall configuration schema"
+
+properties:
+
+  version:
+    type: string
+    description: "Config file format version"
+    default: "1"
+
+  menu_backend:
+    type: string
+    description: "Menu launcher backend to use"
+    enum: [rofi, wofi, fzf, dmenu, tofi, bemenu]
+    default: "rofi"
+
+  theme:
+    type: string
+    description: "Color palette name (from themes/palettes/)"
+    default: "catppuccin-mocha"
+
+  dynamic_theme:
+    type: boolean
+    description: "Whether to derive palette from wallpaper colors"
+    default: false
+
+  launcher_style:
+    type: string
+    description: "Visual layout style for the menu"
+    default: "style_1"
+
+  modules:
+    type: array
+    description: "List of enabled module names"
+    items:
+      type: string
+    default: []
+
+  appearance:
+    type: object
+    description: >
+      Visual appearance settings. Each property accepts a value (kall applies it),
+      false (system/compositor handles it), or absent (default applies).
+    properties:
+      managed:
+        type: boolean
+        description: "Master switch — false disables all kall styling"
+        default: true
+      font:
+        type: [string, boolean]
+        description: "Font family and size, or false to let system handle"
+        default: "JetBrainsMono Nerd Font 12"
+      icon_theme:
+        type: [string, boolean]
+        description: "Icon theme name, or false to let system handle"
+        default: "Papirus-Dark"
+      border_radius:
+        type: [integer, boolean]
+        description: "Border radius in px, or false to let system handle"
+        default: 12
+      border_width:
+        type: [integer, boolean]
+        description: "Border width in px, or false to let system handle"
+        default: 2
+      opacity:
+        type: [number, boolean]
+        description: "Window opacity 0.0–1.0, or false to let system handle"
+        default: 0.9
+
+  logging:
+    type: object
+    description: "Logging configuration"
+    properties:
+      level:
+        type: string
+        enum: [TRACE, DEBUG, INFO, WARN, ERROR, FATAL]
+        default: "INFO"
+      file:
+        type: boolean
+        description: "Enable log file output"
+        default: true
+      max_size_mb:
+        type: integer
+        description: "Log rotation threshold in MB"
+        default: 1
+      keep_rotated:
+        type: integer
+        description: "Number of rotated log files to keep"
+        default: 3
+
+  custom_groups:
+    type: object
+    description: >
+      User-defined module groups. Keys are group names,
+      values are arrays of module names.
+    additionalProperties:
+      type: array
+      items:
+        type: string
+
+  module_overrides:
+    type: object
+    description: >
+      Per-module configuration overrides. Keys are module names,
+      values are objects with module-specific settings.
+    additionalProperties:
+      type: object
