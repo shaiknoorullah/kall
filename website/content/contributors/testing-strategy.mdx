@@ -1,0 +1,461 @@
+---
+title: Testing Strategy
+description: Five testing layers, BATS infrastructure, mock system, CI matrix, and writing tests for new modules.
+---
+
+kall uses a five-layer testing strategy to ensure correctness across platforms, display servers, and menu backends. All tests are written in BATS (Bash Automated Testing System) and run through a shared test infrastructure in `tests/test_helper/common.bash`. This page covers each testing layer, the mock system, the CI matrix, and how to write tests for new modules.
+
+## Five Testing Layers
+
+The testing strategy is organized into progressive layers, from fast isolated unit tests to full-system smoke tests:
+
+| Layer | Scope | What it validates | Speed |
+|---|---|---|---|
+| 1. Unit tests | Individual `lib/` functions | Platform detection, clipboard routing, theme loading, notification dispatch | Fast (ms) |
+| 2. Module tests | Single module end-to-end | Module entry script produces correct behavior given mock menu output | Fast (ms) |
+| 3. Integration tests | Cross-cutting concerns | YAML schema validation, module completeness, no forbidden tool calls, shellcheck/shfmt | Medium (seconds) |
+| 4. CI matrix | Platform combinations | All tests pass on Ubuntu 22.04, Ubuntu 24.04, macOS 14, across X11/Wayland/Darwin sessions | Slow (minutes) |
+| 5. Smoke tests | Full installation | Installer produces working system on fresh VM/container images | Slow (minutes) |
+
+### Layer 1: Unit Tests
+
+Every function in `lib/` is tested with platform mocks. Each test runs under multiple simulated environments by setting `XDG_SESSION_TYPE=x11`, `XDG_SESSION_TYPE=wayland`, and `OSTYPE=darwin`. This validates that platform-conditional logic branches correctly without needing real display servers.
+
+Example areas covered:
+- `lib/platform.sh` — clipboard operations route to the correct tool per platform
+- `lib/theme.sh` — palette loading, fallback behavior, wallbash extraction
+- `lib/notify.sh` — notification dispatch to libnotify vs macOS vs generic adapter
+- `lib/menu.sh` — backend loading, required function validation
+
+### Layer 2: Module Tests
+
+Every module must have a corresponding `test_<name>.bats` file in `tests/`. The CI `validate` job enforces this by scanning `modules/` directories and checking for matching test files. If a module exists without a test file, CI fails.
+
+Module tests use mock menu output (via `MENU_MOCK_OUTPUT`) to simulate user selections and verify the module calls the correct lib functions with the expected arguments. Tests never launch real rofi, wofi, or any GUI process.
+
+### Layer 3: Integration Tests
+
+Integration tests are structural validations that run without executing module code:
+
+- **YAML schema validation** — all `module.yml`, `kall.yml`, `group.yml`, and palette files are validated against versioned schemas in `schemas/`
+- **Module completeness** — every module directory contains `module.yml` + entry script + test file
+- **Forbidden tool calls** — `grep` scans all module scripts for direct invocations of platform-specific tools (`xclip`, `wl-copy`, `grim`, `maim`, `hyprctl`, `i3-msg`, `i3lock`, `swaymsg`, `pbcopy`, `pbpaste`, `screencapture`, `xdotool`, `xrandr`). Any match (excluding comments) fails the build. This enforces invariant INV-MOD-03.
+- **Shellcheck + shfmt** — all `.sh` files pass static analysis and formatting checks
+
+The `validate` job in `ci.yml` runs these checks:
+
+```yaml
+validate:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - name: Check modules have tests
+      run: |
+        status=0
+        for dir in modules/*/; do
+          [ -d "$dir" ] || continue
+          name=$(basename "$dir")
+          [[ "$name" == "groups" ]] && continue
+          if [ ! -f "tests/test_${name}.bats" ]; then
+            echo "FAIL: modules/$name/ missing test file"
+            status=1
+          fi
+        done
+        exit $status
+    - name: Check no direct platform tool calls
+      run: |
+        forbidden="xclip\|wl-copy\|wl-paste\|grim\|maim\|hyprctl\|..."
+        if grep -rn "$forbidden" modules/ --include='*.sh' 2>/dev/null | grep -v '#'; then
+          echo "FAIL: modules contain direct platform tool calls"
+          exit 1
+        fi
+```
+
+### Layer 4: CI Matrix
+
+The test matrix runs all BATS tests across platform and session type combinations:
+
+| Runner | Session type | Tests run |
+|---|---|---|
+| `ubuntu-22.04` | `x11` | All lib + module tests |
+| `ubuntu-22.04` | `wayland` | All lib + module tests |
+| `ubuntu-24.04` | `x11` | All lib + module tests |
+| `ubuntu-24.04` | `wayland` | All lib + module tests |
+| `macos-14` | `darwin` | Lib tests + macOS-compatible module tests |
+
+The matrix is defined in `ci.yml` with exclusions for invalid combinations (macOS does not use X11 or Wayland session types):
+
+```yaml
+test:
+  runs-on: ${{ matrix.os }}
+  strategy:
+    matrix:
+      os: [ubuntu-22.04, ubuntu-24.04, macos-14]
+      session: [x11, wayland]
+      exclude:
+        - os: macos-14
+          session: x11
+        - os: macos-14
+          session: wayland
+      include:
+        - os: macos-14
+          session: darwin
+  steps:
+    - uses: actions/checkout@v4
+    - name: Run tests
+      env:
+        XDG_SESSION_TYPE: ${{ matrix.session }}
+      run: ./tests/run_tests.sh
+```
+
+### Layer 5: Smoke Tests
+
+Smoke tests validate the full installation flow on fresh images. They run `curl -fsSL kall.sh/install | bash` on clean Arch, Ubuntu, and macOS containers/VMs and verify:
+
+- `kall.yml` is created at `~/.config/kall/kall.yml`
+- `kall list` returns installed modules
+- `kall doctor` passes all checks
+
+## BATS Test Infrastructure
+
+All test files share a common setup and teardown through `tests/test_helper/common.bash`. This file provides:
+
+### Project Paths
+
+```bash
+export PROJECT_ROOT
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export LIB_DIR="$PROJECT_ROOT/lib"
+export MOCKS_DIR="$PROJECT_ROOT/tests/test_helper/mocks"
+```
+
+### Loading Helpers
+
+The infrastructure loads bats-support and bats-assert, which provide assertion functions like `assert_success`, `assert_failure`, `assert_output`, and `assert_line`:
+
+```bash
+load "$PROJECT_ROOT/tests/test_helper/bats-support/load"
+load "$PROJECT_ROOT/tests/test_helper/bats-assert/load"
+```
+
+### `common_setup`
+
+Called from `setup()` in each test file. Creates an isolated environment:
+
+```bash
+common_setup() {
+  # Create isolated temp directory
+  TEST_TEMP="$(mktemp -d)"
+  export TEST_TEMP
+
+  # Mock log file for tracking mock invocations
+  export MOCK_LOG="$TEST_TEMP/mock_calls.log"
+  touch "$MOCK_LOG"
+
+  # Menu mock output files
+  export MENU_MOCK_OUTPUT="$TEST_TEMP/menu_output"
+  export MENU_MULTI_OUTPUT="$TEST_TEMP/menu_multi_output"
+  export MENU_CALL_COUNT="$TEST_TEMP/menu_call_count"
+  echo "0" > "$MENU_CALL_COUNT"
+
+  # Override HOME to isolate tests from user config
+  export REAL_HOME="$HOME"
+  export HOME="$TEST_TEMP/home"
+  mkdir -p "$HOME"
+
+  # Set XDG dirs into temp
+  export XDG_CONFIG_HOME="$TEST_TEMP/config"
+  export XDG_DATA_HOME="$TEST_TEMP/data"
+  export XDG_CACHE_HOME="$TEST_TEMP/cache"
+  export XDG_STATE_HOME="$TEST_TEMP/state"
+  mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
+
+  # Inject mocks into PATH (prepend so they shadow real binaries)
+  export PATH="$MOCKS_DIR:$PATH"
+}
+```
+
+Key behaviors:
+- Every test gets its own `TEST_TEMP` directory, torn down after the test
+- `HOME` is redirected to prevent tests from reading or writing the developer's real config
+- XDG directories are isolated into temp so modules that use `XDG_CONFIG_HOME` operate in a sandbox
+- Mock binaries in `tests/test_helper/mocks/` are prepended to `PATH`, shadowing real platform tools
+
+### `common_teardown`
+
+Called from `teardown()` in each test file. Removes the temp directory:
+
+```bash
+common_teardown() {
+  if [[ -n "${TEST_TEMP:-}" && -d "$TEST_TEMP" ]]; then
+    rm -rf "$TEST_TEMP"
+  fi
+}
+```
+
+## Mock System
+
+Mocks are executable scripts in `tests/test_helper/mocks/` that simulate platform tools. Each mock logs its invocation to `MOCK_LOG` and returns controlled output.
+
+### Mock Logging
+
+Every mock writes its name and arguments to the shared log file:
+
+```bash
+#!/usr/bin/env bash
+MOCK_NAME="hyprctl"
+echo "$MOCK_NAME $*" >> "${MOCK_LOG:-/dev/null}"
+```
+
+This allows tests to assert which tools were called and with what arguments, without executing real binaries.
+
+### Available Mocks
+
+The project ships mocks for all platform-specific tools:
+
+| Category | Mocks |
+|---|---|
+| Clipboard | `xclip`, `wl-copy`, `wl-paste`, `pbcopy`, `pbpaste` |
+| Screenshot | `grim`, `slurp`, `maim`, `screencapture` |
+| Window manager | `hyprctl`, `i3-msg`, `swaymsg`, `xdotool`, `xrandr`, `bspc` |
+| Lock screen | `hyprlock`, `swaylock`, `slock`, `i3lock` |
+| Wallpaper | `swww`, `feh` |
+| Notification | `notify-send`, `osascript` |
+| Menu backends | `rofi` |
+| System | `open`, `xdg-open`, `playerctl`, `pkill`, `pmset` |
+| Data tools | `yq` |
+
+### `MENU_MOCK_OUTPUT`
+
+The primary mechanism for controlling menu selections. Tests write expected output to the `MENU_MOCK_OUTPUT` file, and the rofi mock reads and returns it:
+
+```bash
+@test "power module shows shutdown option" {
+  echo "Shutdown" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/power/power.sh"
+  assert_success
+  assert_mock_called "systemctl"
+}
+```
+
+The `MENU_MOCK_OUTPUT` variable name is backend-agnostic (it replaced the legacy `ROFI_MOCK_OUTPUT` name from v1).
+
+### Multi-Call Menu Output
+
+For modules that show multiple sequential menus (e.g., a confirmation dialog after initial selection), use `set_menu_outputs`:
+
+```bash
+set_menu_outputs() {
+  : > "$MENU_MULTI_OUTPUT"
+  for output in "$@"; do
+    echo "$output" >> "$MENU_MULTI_OUTPUT"
+  done
+  echo "0" > "$MENU_CALL_COUNT"
+}
+```
+
+Each call to the mock menu reads the next line from `MENU_MULTI_OUTPUT`, incrementing the call counter. This simulates multi-step menu flows:
+
+```bash
+@test "power module confirms before shutdown" {
+  set_menu_outputs "Shutdown" "Yes"
+  run bash "$PROJECT_ROOT/modules/power/power.sh"
+  assert_success
+  assert_mock_called_with "systemctl" "poweroff"
+}
+```
+
+### Mock Assertion Helpers
+
+`common.bash` provides four assertion functions for verifying mock interactions:
+
+**`assert_mock_called <mock_name>`** — asserts the mock was called at least once:
+
+```bash
+assert_mock_called() {
+  local mock_name="$1"
+  if ! grep -q "^$mock_name " "$MOCK_LOG" 2>/dev/null; then
+    echo "Expected mock '$mock_name' to have been called, but it was not." >&2
+    return 1
+  fi
+}
+```
+
+**`assert_mock_not_called <mock_name>`** — asserts the mock was never called:
+
+```bash
+assert_mock_not_called() {
+  local mock_name="$1"
+  if grep -q "^$mock_name " "$MOCK_LOG" 2>/dev/null; then
+    echo "Expected mock '$mock_name' NOT to have been called, but it was." >&2
+    return 1
+  fi
+}
+```
+
+**`assert_mock_called_with <mock_name> <expected_args...>`** — asserts specific arguments:
+
+```bash
+assert_mock_called_with() {
+  local mock_name="$1"
+  shift
+  local expected_args="$*"
+  if ! grep -q "^$mock_name $expected_args" "$MOCK_LOG" 2>/dev/null; then
+    echo "Expected mock '$mock_name' to have been called with: $expected_args" >&2
+    return 1
+  fi
+}
+```
+
+**`get_mock_calls <mock_name>`** — returns all calls to a specific mock for custom assertions:
+
+```bash
+get_mock_calls() {
+  local mock_name="$1"
+  grep "^$mock_name " "$MOCK_LOG" 2>/dev/null || true
+}
+```
+
+## Writing Tests for a New Module
+
+When you create a new module, you must also create a test file. Here is a step-by-step guide using a hypothetical `calculator` module.
+
+### Step 1: Create the Test File
+
+Create `tests/test_calculator.bats`:
+
+```bash
+#!/usr/bin/env bats
+
+load test_helper/common
+
+setup() {
+  common_setup
+}
+
+teardown() {
+  common_teardown
+}
+```
+
+### Step 2: Write Basic Execution Tests
+
+Test that the module runs and exits cleanly:
+
+```bash
+@test "calculator module loads without errors" {
+  echo "1+1" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/calculator/calculator.sh"
+  assert_success
+}
+```
+
+### Step 3: Test Menu Interactions
+
+Use `MENU_MOCK_OUTPUT` to simulate user input and verify behavior:
+
+```bash
+@test "calculator sends expression to menu_calc" {
+  echo "42" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/calculator/calculator.sh"
+  assert_success
+  assert_mock_called "rofi"
+}
+```
+
+### Step 4: Test Platform Branching
+
+Run the same test under different session types to verify cross-platform behavior:
+
+```bash
+@test "calculator works on x11" {
+  export XDG_SESSION_TYPE=x11
+  echo "2+2" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/calculator/calculator.sh"
+  assert_success
+}
+
+@test "calculator works on wayland" {
+  export XDG_SESSION_TYPE=wayland
+  echo "2+2" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/calculator/calculator.sh"
+  assert_success
+}
+```
+
+### Step 5: Test Error Handling
+
+Verify the module handles edge cases gracefully:
+
+```bash
+@test "calculator handles empty menu selection" {
+  echo "" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/calculator/calculator.sh"
+  # Module should exit cleanly on empty selection (user cancelled)
+  assert_success
+}
+```
+
+### Step 6: Test Mock Assertions for Side Effects
+
+If the module calls platform tools, verify those calls:
+
+```bash
+@test "calculator copies result to clipboard" {
+  echo "42" > "$MENU_MOCK_OUTPUT"
+  export XDG_SESSION_TYPE=x11
+  run bash "$PROJECT_ROOT/modules/calculator/calculator.sh"
+  assert_mock_called "xclip"
+}
+
+@test "calculator uses wl-copy on wayland" {
+  echo "42" > "$MENU_MOCK_OUTPUT"
+  export XDG_SESSION_TYPE=wayland
+  run bash "$PROJECT_ROOT/modules/calculator/calculator.sh"
+  assert_mock_called "wl-copy"
+  assert_mock_not_called "xclip"
+}
+```
+
+## Running Tests
+
+### Full Suite
+
+Run all tests via the test runner script:
+
+```bash
+./tests/run_tests.sh
+```
+
+This discovers all `.bats` files in `tests/` and runs them through the BATS binary.
+
+### Single Test File
+
+Run tests for a specific module:
+
+```bash
+bats tests/test_power.bats
+```
+
+### With Verbose Output
+
+```bash
+bats --verbose-run tests/test_power.bats
+```
+
+### Under a Specific Session Type
+
+```bash
+XDG_SESSION_TYPE=wayland bats tests/test_clipboard.bats
+```
+
+## Test Naming Conventions
+
+Follow these conventions when naming test files and test cases:
+
+- Test files: `tests/test_<module-name>.bats`
+- Test names should describe the expected behavior, not the implementation:
+  - Good: `"clipboard copies text on x11"`
+  - Bad: `"clipboard calls xclip with -selection clipboard"`
+- Group related tests together. Put platform-specific tests after general tests.
+- Always test both success and failure paths.
