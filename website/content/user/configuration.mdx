@@ -1,0 +1,260 @@
+---
+title: Configuration
+description: Complete reference for kall.yml — backends, modules, appearance, logging, and overrides.
+---
+
+All user configuration lives in a single file:
+
+```
+~/.config/kall/kall.yml
+```
+
+kall works out of the box with no configuration file. Every value has a built-in default. Create or edit `kall.yml` only when you want to change something.
+
+---
+
+## Full example
+
+```yaml
+# ~/.config/kall/kall.yml
+
+version: "2.0.0"
+menu_backend: rofi
+theme: catppuccin-mocha
+dynamic_theme: false
+launcher_style: style_1
+
+modules:
+  - power
+  - clipboard
+  - screenshot
+  - websearch
+  - bookmarks
+  - media
+  - zen-tabs
+  - tmux
+  - obsidian
+
+appearance:
+  managed: true
+  font: "JetBrainsMono Nerd Font 10"
+  icon_theme: "Adwaita"
+  border_radius: 8
+  border_width: 2
+  opacity: 0.95
+
+logging:
+  level: INFO
+  file: true
+  max_size_mb: 1
+  keep_rotated: 3
+
+custom_groups:
+  - name: favorites
+    layout: list
+    members: [power, clipboard, screenshot, websearch]
+
+module_overrides:
+  wallpaper:
+    layout_hints:
+      columns: 6
+      icon_size: medium
+  projects:
+    layout_hints:
+      preview:
+        fzf:
+          command: "eza --tree --level=3 --icons --git-ignore --color=always {}"
+          size: "70%"
+```
+
+---
+
+## Property reference
+
+### Top-level properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `version` | string | `"2.0.0"` | Config schema version. Used for migration. |
+| `menu_backend` | string | `rofi` | Active menu launcher. One of: `rofi`, `wofi`, `tofi`, `fuzzel`, `dmenu`, `fzf`. |
+| `theme` | string | `catppuccin-mocha` | Active color palette name. Must match a file in `themes/palettes/`. |
+| `dynamic_theme` | bool | `false` | Enable wallbash dynamic theming from wallpaper colors. |
+| `launcher_style` | string | `style_1` | Launcher window style. 12 windowed styles plus `launchpad` (fullscreen). |
+
+### modules
+
+An array of module names to enable. Only listed modules are available via `kall <module>`.
+
+```yaml
+modules:
+  - power
+  - clipboard
+  - screenshot
+  - websearch
+```
+
+Manage modules with the CLI instead of editing this list directly:
+
+```bash
+kall add emoji calculator
+kall remove zen-workspaces
+```
+
+### appearance
+
+Controls how kall styles its menu windows. Every appearance property supports three states:
+
+| State | Meaning | Example |
+|---|---|---|
+| **A value** | kall applies this value to all menu windows | `border_radius: 8` |
+| **`false`** | kall skips this property — your system (compositor, WM) handles it | `border_radius: false` |
+| **Absent** | kall uses its built-in default | _(omit the key entirely)_ |
+
+This three-state design lets you selectively hand control back to your system. For example, if your compositor already handles window opacity, set `opacity: false` so kall does not override it.
+
+#### appearance properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `managed` | bool | `true` | Master switch. Set to `false` to disable all kall styling — your system handles everything. |
+| `font` | string or `false` | `"JetBrainsMono Nerd Font 10"` | Font for menu text. Set to `false` to use system font. |
+| `icon_theme` | string or `false` | `"Adwaita"` | Icon theme for menu entries. Set to `false` to use system icon theme. |
+| `border_radius` | int or `false` | `8` | Corner radius in pixels. Set to `false` if your compositor handles rounding. |
+| `border_width` | int or `false` | `2` | Border width in pixels. Set to `false` to disable borders. |
+| `opacity` | float or `false` | `0.95` | Window opacity (0.0 to 1.0). Set to `false` if picom or Hyprland window rules handle opacity. |
+
+#### Examples
+
+Let kall handle everything (default):
+
+```yaml
+appearance:
+  managed: true
+  font: "JetBrainsMono Nerd Font 10"
+  border_radius: 8
+  opacity: 0.95
+```
+
+Let your system handle everything:
+
+```yaml
+appearance:
+  managed: false
+```
+
+Mixed — kall handles font and borders, system handles opacity and rounding:
+
+```yaml
+appearance:
+  font: "Iosevka Nerd Font 11"
+  border_width: 1
+  border_radius: false
+  opacity: false
+```
+
+### logging
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `level` | string | `INFO` | Minimum log level. One of: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`. |
+| `file` | bool | `true` | Write logs to `$XDG_STATE_HOME/kall/kall.log`. Set to `false` for stderr only. |
+| `max_size_mb` | int | `1` | Rotate the log file when it exceeds this size in megabytes. |
+| `keep_rotated` | int | `3` | Number of rotated log files to keep (`kall.log.1`, `kall.log.2`, etc.). |
+
+```yaml
+logging:
+  level: INFO
+  file: true
+  max_size_mb: 1
+  keep_rotated: 3
+```
+
+### custom_groups
+
+Define your own module groups that aggregate multiple modules into a single navigable menu.
+
+```yaml
+custom_groups:
+  - name: favorites
+    layout: list
+    members: [power, clipboard, screenshot, websearch]
+  - name: daily
+    layout: tabs
+    members: [obsidian, tmux, projects, websearch]
+```
+
+| Property | Type | Description |
+|---|---|---|
+| `name` | string | Group name. Invoke with `kall <name>`. |
+| `layout` | string | Navigation style: `tabs`, `breadcrumbs`, `sections`, or `list`. |
+| `members` | array | List of module names to include. |
+
+### module_overrides
+
+Override layout hints for any module without editing module source files.
+
+```yaml
+module_overrides:
+  wallpaper:
+    layout_hints:
+      columns: 6
+      icon_size: medium
+  projects:
+    layout_hints:
+      preview:
+        fzf:
+          command: "eza --tree --level=3 --icons --git-ignore --color=always {}"
+          size: "70%"
+```
+
+Available layout hint properties:
+
+| Property | Type | Description |
+|---|---|---|
+| `columns` | int | Number of columns in grid layout. |
+| `icon_size` | string | Icon size: `small`, `medium`, or `large`. |
+| `show_icons` | bool | Whether to show icons in menu entries. |
+| `show_preview` | bool | Whether to show preview pane (fzf only). |
+| `orientation` | string | `horizontal` or `vertical`. |
+| `width` | string | Window width hint (e.g., `"80%"`). |
+| `lines` | int | Number of visible rows. |
+| `preview` | object | Backend-specific preview configuration. |
+
+---
+
+## Module configs
+
+Modules with user-configurable options store their config in separate files:
+
+```
+~/.config/kall/config/
+├── websearch.yml
+├── git-profiles.yml
+└── zen-workspaces.yml
+```
+
+Each module documents its own config options. These files are created automatically when you install a module with `kall add`.
+
+---
+
+## File locations
+
+| Path | Purpose |
+|---|---|
+| `~/.config/kall/kall.yml` | Main configuration |
+| `~/.config/kall/config/` | Per-module user configs |
+| `~/.config/kall/themes/` | Active theme files |
+| `~/.local/share/kall/` | Source installation (never edit) |
+| `$XDG_STATE_HOME/kall/` | Log files |
+
+---
+
+## Validation
+
+Validate your configuration at any time:
+
+```bash
+kall doctor
+```
+
+This checks `kall.yml` against the config schema, verifies all referenced modules exist, checks dependencies, and reports issues. kall also validates the config on every startup and falls back to built-in defaults for any invalid values.

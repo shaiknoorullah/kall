@@ -1,138 +1,77 @@
 ---
 title: Themes
-description: Color palettes, dynamic wallbash theming, and custom palette creation.
+description: Color palettes, dynamic wallbash theming, custom palettes, and theme generation across backends.
 ---
 
-kall ships six curated color palettes and supports dynamic color extraction from your wallpaper. Palettes define eight canonical color slots that map to semantic roles in every menu backend. This page covers the built-in palettes, theme management commands, wallbash dynamic theming, and how to create your own palette.
+kall ships six curated color palettes and supports dynamic wallpaper-based theming. One palette definition generates theme files for every supported backend automatically.
 
-## Built-in palettes
-
-Six palettes are included in `themes/palettes/`:
-
-### Catppuccin Mocha
-
-A warm, pastel dark theme from the Catppuccin project.
-
-| Color slot | Hex | Role |
-|---|---|---|
-| `main_bg` | `#1E1E2E` | Primary background |
-| `main_fg` | `#CDD6F4` | Primary foreground |
-| `main_br` | `#CBA6F7` | Border / accent (mauve) |
-| `main_ex` | `#F5E0DC` | Extra accent (rosewater) |
-| `select_bg` | `#B4BEFE` | Selected item background (lavender) |
-| `select_fg` | `#1E1E2E` | Selected item foreground |
-| `urgent_bg` | `#F38BA8` | Urgent background (red) |
-| `urgent_fg` | `#1E1E2E` | Urgent foreground |
-
-### Dracula
-
-The classic Dracula dark palette.
-
-| Color slot | Hex | Role |
-|---|---|---|
-| `main_bg` | `#282A36` | Primary background |
-| `main_fg` | `#F8F8F2` | Primary foreground |
-| `main_br` | `#BD93F9` | Border / accent (purple) |
-| `main_ex` | `#FF79C6` | Extra accent (pink) |
-| `select_bg` | `#44475A` | Selected item background |
-| `select_fg` | `#F8F8F2` | Selected item foreground |
-| `urgent_bg` | `#FF5555` | Urgent background (red) |
-| `urgent_fg` | `#F8F8F2` | Urgent foreground |
-
-### Nord
-
-Arctic, north-bluish palette by Arctic Ice Studio.
-
-| Color slot | Hex | Role |
-|---|---|---|
-| `main_bg` | `#2E3440` | Primary background (Polar Night) |
-| `main_fg` | `#ECEFF4` | Primary foreground (Snow Storm) |
-| `main_br` | `#88C0D0` | Border / accent (Frost) |
-| `main_ex` | `#81A1C1` | Extra accent (Frost) |
-| `select_bg` | `#4C566A` | Selected item background |
-| `select_fg` | `#ECEFF4` | Selected item foreground |
-| `urgent_bg` | `#BF616A` | Urgent background (Aurora red) |
-| `urgent_fg` | `#ECEFF4` | Urgent foreground |
-
-### Gruvbox
-
-Retro groove palette by morhetz.
-
-| Color slot | Hex | Role |
-|---|---|---|
-| `main_bg` | `#282828` | Primary background (dark0) |
-| `main_fg` | `#EBDBB2` | Primary foreground (light1) |
-| `main_br` | `#D79921` | Border / accent (yellow) |
-| `main_ex` | `#458588` | Extra accent (blue) |
-| `select_bg` | `#504945` | Selected item background (dark2) |
-| `select_fg` | `#EBDBB2` | Selected item foreground |
-| `urgent_bg` | `#CC241D` | Urgent background (red) |
-| `urgent_fg` | `#EBDBB2` | Urgent foreground |
-
-### Tokyo Night
-
-Dark theme inspired by Tokyo city lights, by enkia.
-
-| Color slot | Hex | Role |
-|---|---|---|
-| `main_bg` | `#1A1B26` | Primary background |
-| `main_fg` | `#C0CAF5` | Primary foreground |
-| `main_br` | `#7AA2F7` | Border / accent (blue) |
-| `main_ex` | `#BB9AF7` | Extra accent (purple) |
-| `select_bg` | `#33467C` | Selected item background |
-| `select_fg` | `#C0CAF5` | Selected item foreground |
-| `urgent_bg` | `#F7768E` | Urgent background (red) |
-| `urgent_fg` | `#C0CAF5` | Urgent foreground |
-
-### Rose Pine
-
-Natural, muted palette from the Rose Pine project.
-
-| Color slot | Hex | Role |
-|---|---|---|
-| `main_bg` | `#191724` | Primary background (base) |
-| `main_fg` | `#E0DEF4` | Primary foreground (text) |
-| `main_br` | `#C4A7E7` | Border / accent (iris) |
-| `main_ex` | `#EBBCBA` | Extra accent (rose) |
-| `select_bg` | `#26233A` | Selected item background (overlay) |
-| `select_fg` | `#E0DEF4` | Selected item foreground |
-| `urgent_bg` | `#EB6F92` | Urgent background (love) |
-| `urgent_fg` | `#E0DEF4` | Urgent foreground |
+---
 
 ## Theme commands
 
-### Set active theme
+```bash
+kall theme list              # Show available palettes
+kall theme set dracula       # Switch to the Dracula palette
+kall theme wallbash on       # Enable dynamic wallpaper theming
+kall theme wallbash off      # Disable wallbash, use static palette
+kall style set style_5       # Change launcher window style
+```
 
-Switch to a different palette:
+---
+
+## Shipped palettes
+
+kall includes six palettes out of the box. Each palette defines eight core color variables used across all backends.
+
+### Color values
+
+| Palette | Background | Foreground | Border | Accent | Selection BG | Selection FG | Urgent BG | Urgent FG |
+|---|---|---|---|---|---|---|---|---|
+| **Catppuccin Mocha** | `#1E1E2E` | `#CDD6F4` | `#CBA6F7` | `#F5E0DC` | `#B4BEFE` | `#1E1E2E` | `#F38BA8` | `#1E1E2E` |
+| **Dracula** | `#282A36` | `#F8F8F2` | `#BD93F9` | `#FF79C6` | `#44475A` | `#F8F8F2` | `#FF5555` | `#F8F8F2` |
+| **Nord** | `#2E3440` | `#ECEFF4` | `#88C0D0` | `#81A1C1` | `#4C566A` | `#ECEFF4` | `#BF616A` | `#ECEFF4` |
+| **Gruvbox** | `#282828` | `#EBDBB2` | `#D79921` | `#458588` | `#504945` | `#EBDBB2` | `#CC241D` | `#EBDBB2` |
+| **Tokyo Night** | `#1A1B26` | `#C0CAF5` | `#7AA2F7` | `#BB9AF7` | `#33467C` | `#C0CAF5` | `#F7768E` | `#C0CAF5` |
+| **Rose Pine** | `#191724` | `#E0DEF4` | `#C4A7E7` | `#EBBCBA` | `#26233A` | `#E0DEF4` | `#EB6F92` | `#E0DEF4` |
+
+The palette color variables map to menu elements:
+
+| Variable | Purpose |
+|---|---|
+| `main_bg` | Menu window background |
+| `main_fg` | Default text color |
+| `main_br` | Window border color |
+| `main_ex` | Accent color for highlights |
+| `select_bg` | Selected item background |
+| `select_fg` | Selected item text |
+| `urgent_bg` | Urgent/destructive action background |
+| `urgent_fg` | Urgent/destructive action text |
+
+Some palettes (like Catppuccin Mocha) include extended color definitions beyond the core eight. These are available for modules and backends that support richer color schemes.
+
+---
+
+## Setting a theme
+
+In `kall.yml`:
+
+```yaml
+theme: catppuccin-mocha
+```
+
+Or via CLI:
 
 ```bash
-kall theme set dracula
+kall theme set nord
 ```
 
-This updates the `theme` key in `kall.yml` and regenerates backend-specific theme files.
+Both methods regenerate theme files for your active backend immediately.
 
-### List available palettes
-
-Show all palettes in `themes/palettes/`:
-
-```bash
-kall theme list
-```
-
-Output:
-
-```
-catppuccin-mocha
-dracula
-gruvbox
-nord
-rose-pine
-tokyo-night
-```
+---
 
 ## Dynamic wallbash
 
-Wallbash is an opt-in dynamic theming mode that extracts dominant colors from your current wallpaper instead of using a curated palette. It requires ImageMagick.
+Wallbash extracts dominant colors from your current wallpaper and generates a dynamic palette. Your menus automatically match your wallpaper.
 
 ### Enabling wallbash
 
@@ -140,116 +79,152 @@ Wallbash is an opt-in dynamic theming mode that extracts dominant colors from yo
 kall theme wallbash on
 ```
 
-This sets `dynamic_theme: true` in `kall.yml`. The next time any module runs, the theme engine calls `generate_wallbash()` instead of `load_theme()`.
+Or in `kall.yml`:
+
+```yaml
+dynamic_theme: true
+```
+
+### Requirements
+
+Wallbash requires **ImageMagick** (`convert`/`magick` command). If ImageMagick is not installed, wallbash falls back to your static palette silently.
 
 ### How it works
 
-The `generate_wallbash()` function in `lib/theme.sh` performs these steps:
-
-1. **Resize** the wallpaper image to 100x100 pixels (forced aspect ratio) for fast processing
-2. **Quantize** to 8 dominant colors using ImageMagick color reduction: `convert "$wallpaper" -resize 100x100! -colors 8 -unique-colors txt:-`
-3. **Extract** hex color codes from the output
-4. **Sort by luminance** using BT.601 coefficients (`R * 299 + G * 587 + B * 114`)
-5. **Map** sorted colors to `KALL_COLOR_*` variables (darkest to backgrounds, lightest to foregrounds)
-
-The luminance-based mapping:
-
-| Sort position | Variable | Role |
-|---|---|---|
-| 1 (darkest) | `KALL_COLOR_MAIN_BG` | Primary background |
-| 2 | `KALL_COLOR_SELECT_BG` | Selected item background |
-| 4 | `KALL_COLOR_URGENT_BG` | Urgent background |
-| 5 | `KALL_COLOR_MAIN_EX` | Extra accent |
-| 6 | `KALL_COLOR_MAIN_BR` | Border accent |
-| 7 | `KALL_COLOR_SELECT_FG` | Selected item foreground |
-| 8 (lightest) | `KALL_COLOR_MAIN_FG`, `KALL_COLOR_URGENT_FG` | Primary and urgent foreground |
+1. kall reads your current wallpaper path.
+2. ImageMagick extracts the dominant colors from the wallpaper image.
+3. kall generates a temporary palette YAML from those colors.
+4. The temporary palette feeds through the same theme generation pipeline as static palettes.
+5. Backend theme files are regenerated with the new colors.
 
 ### Fallback behavior
 
-Wallbash falls back to the static palette (the `theme` value in `kall.yml`) in three cases:
+Wallbash falls back to your static palette if any of these conditions are true:
 
-- The wallpaper file does not exist
-- ImageMagick (`convert`) is not installed
-- Color extraction produces fewer than 8 colors
+- ImageMagick is not installed
+- No wallpaper is set
+- Color extraction fails for any reason
 
-The fallback is automatic and silent except for a `WARN`-level log entry.
+The fallback is silent — kall logs a debug message but does not interrupt your workflow.
 
-### Disabling wallbash
+---
 
-```bash
-kall theme wallbash off
-```
+## Custom palettes
 
-This sets `dynamic_theme: false` and reverts to the static palette.
+Create your own palette by adding a YAML file to `themes/palettes/`.
 
-## Creating a custom palette
-
-### Step 1: Copy an existing palette
-
-Start from a palette close to what you want:
-
-```bash
-cp themes/palettes/catppuccin-mocha.yml themes/palettes/my-theme.yml
-```
-
-### Step 2: Edit the colors
-
-Open the file and replace the hex values. All eight color keys under `colors` are required:
+### Palette format
 
 ```yaml
-name: "My Custom Theme"
-author: "your-name"
+# themes/palettes/my-palette.yml
+
+name: "My Palette"
+author: "Your Name"
 
 colors:
-  main_bg: "#1a1b26"
-  main_fg: "#c0caf5"
-  main_br: "#7aa2f7"
-  main_ex: "#bb9af7"
-  select_bg: "#283457"
-  select_fg: "#c0caf5"
-  urgent_bg: "#f7768e"
-  urgent_fg: "#1a1b26"
+  main_bg: "#1a1a2e"
+  main_fg: "#eaeaea"
+  main_br: "#e94560"
+  main_ex: "#0f3460"
+  select_bg: "#533483"
+  select_fg: "#eaeaea"
+  urgent_bg: "#e94560"
+  urgent_fg: "#eaeaea"
+
+opacity:
+  bg: "e6"
 ```
 
-The schema (`schemas/palette.schema.yml`) enforces that `name`, `main_bg`, `main_fg`, `main_br`, `main_ex`, `select_bg`, and `select_fg` are all required. Omitting any key fails validation.
+### Required fields
 
-### Step 3: Validate
+Every palette must define the complete set of eight core color variables under `colors`:
 
-Run the doctor command to check schema compliance:
+- `main_bg`, `main_fg`, `main_br`, `main_ex`
+- `select_bg`, `select_fg`
+- `urgent_bg`, `urgent_fg`
+
+The `opacity.bg` field is optional and specifies the hex alpha value appended to background colors (e.g., `"e6"` for 90% opacity).
+
+### Using your palette
+
+After creating the file, it is immediately available:
 
 ```bash
-kall doctor
+kall theme list          # Your palette appears in the list
+kall theme set my-palette
 ```
 
-### Step 4: Generate backend themes
+No other changes are needed. The theme generator reads your palette and produces backend-specific theme files automatically.
 
-Regenerate theme files for all backends:
+---
 
-```bash
-./backends/generate-themes.sh
+## Theme generation across backends
+
+kall uses a single canonical palette YAML to generate theme files for every supported backend. You never write backend-specific theme code.
+
+The generation pipeline:
+
+```
+themes/palettes/catppuccin-mocha.yml
+        |
+        v
+backends/generate-themes.sh
+        |
+        +---> backends/rofi/themes/     (.rasi files)
+        +---> backends/wofi/themes/     (.css files)
+        +---> backends/tofi/themes/     (.ini files)
+        +---> backends/fuzzel/themes/   (.ini files)
+        +---> backends/dmenu/themes/    (.sh files — color args)
+        +---> backends/fzf/themes/      (.sh files — FZF_DEFAULT_OPTS)
 ```
 
-This reads your new palette and creates theme files in every backend's `themes/` directory (`.rasi` for rofi, `.css` for wofi, `.sh` for fzf and dmenu, `.ini` for tofi and fuzzel).
+Adding a new palette requires zero changes to any backend. The generator handles everything.
 
-### Step 5: Activate
+### What gets generated
 
-```bash
-kall theme set my-theme
-```
+Each backend receives theme files in its native format:
 
-## Color variable reference
-
-After theme loading (static or wallbash), these environment variables are available to all lib functions and backend adapters:
-
-| Variable | Palette key | Semantic role |
+| Backend | Format | Example |
 |---|---|---|
-| `KALL_COLOR_MAIN_BG` | `colors.main_bg` | Primary background |
-| `KALL_COLOR_MAIN_FG` | `colors.main_fg` | Primary foreground / text |
-| `KALL_COLOR_MAIN_BR` | `colors.main_br` | Border and accent color |
-| `KALL_COLOR_MAIN_EX` | `colors.main_ex` | Extra accent (highlights, badges) |
-| `KALL_COLOR_SELECT_BG` | `colors.select_bg` | Selected item background |
-| `KALL_COLOR_SELECT_FG` | `colors.select_fg` | Selected item foreground |
-| `KALL_COLOR_URGENT_BG` | `colors.urgent_bg` | Urgent / error background |
-| `KALL_COLOR_URGENT_FG` | `colors.urgent_fg` | Urgent / error foreground |
+| rofi | `.rasi` (CSS-like) | Color variables + layout templates |
+| wofi | `.css` | Standard CSS with color variables |
+| tofi | `.ini` | INI-style key=value pairs |
+| fuzzel | `.ini` | INI-style key=value pairs |
+| dmenu | `.sh` | Shell variables for `-nb`, `-nf`, `-sb`, `-sf` flags |
+| fzf | `.sh` | Shell variables for `--color` flag |
 
-Modules never read these variables directly. They declare layout hints and the backend adapter handles color application.
+---
+
+## Launcher styles
+
+kall supports 12 windowed launcher styles plus a fullscreen launchpad mode. Switch styles with:
+
+```bash
+kall style set style_5
+```
+
+Or use the visual style picker:
+
+```bash
+kall style-selector
+```
+
+Set a default in `kall.yml`:
+
+```yaml
+launcher_style: style_1
+```
+
+---
+
+## Theme in kall.yml
+
+The complete theme-related configuration:
+
+```yaml
+theme: catppuccin-mocha      # Active palette name
+dynamic_theme: false          # Enable/disable wallbash
+launcher_style: style_1       # Launcher window style
+```
+
+See [Configuration](/user/configuration) for the full `kall.yml` reference.

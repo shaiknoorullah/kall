@@ -1,0 +1,120 @@
+---
+title: Getting Started
+description: Install kall and run your first commands in under two minutes.
+---
+
+## Installation
+
+The fastest way to install kall is with the one-line installer:
+
+```bash
+curl -fsSL kall.sh/install | bash
+```
+
+The installer automatically detects your OS, display server, window manager, package manager, and shell. It then walks you through an interactive setup wizard.
+
+### What the installer does
+
+1. **Detects your system** — OS, display server (X11/Wayland), window manager, package manager, shell.
+2. **Installs framework dependencies** — a menu launcher (you choose which), `yq`, and `jq`.
+3. **Lets you pick modules** — grouped by category, with presets for quick selection.
+4. **Lets you pick a theme** — palette and launcher style, with optional wallbash.
+5. **Resolves dependencies** — aggregates deps from your selected modules, shows what is missing, asks before installing.
+6. **Installs and configures** — clones the repo, generates `kall.yml`, generates theme files, symlinks the CLI.
+7. **Prints a summary** — what was installed, suggested keybindings for your WM, and `kall doctor` results.
+
+The installer never runs as root. It uses `sudo` only for package installation and always asks before each `sudo` invocation.
+
+### Non-interactive install
+
+For scripted or headless setups, pass flags directly:
+
+```bash
+curl -fsSL kall.sh/install | bash -s -- \
+  --non-interactive \
+  --preset standard \
+  --backend rofi \
+  --theme catppuccin-mocha \
+  --style style_1 \
+  --no-wallbash
+```
+
+Available presets: `minimal` (5 modules), `standard` (15 modules), `full` (all 26 modules).
+
+### Post-install setup
+
+If you installed kall through a package manager (AUR, Homebrew), run the interactive setup wizard manually:
+
+```bash
+kall setup
+```
+
+This walks you through module selection, theme picking, and keybinding injection — the same wizard the curl installer runs.
+
+---
+
+## First run
+
+After installation, try these commands to see kall in action:
+
+```bash
+kall power          # Power menu — shutdown, reboot, lock, suspend, logout
+kall clipboard      # Clipboard history with search
+kall screenshot     # Screenshot capture — full, area, or window
+kall websearch      # Web search with autocomplete and bang syntax
+```
+
+Each command opens a menu using your configured backend (rofi by default). Select an option and kall handles the rest.
+
+### Running modules
+
+Every module is invoked as `kall <module>`:
+
+```bash
+kall launcher       # App launcher
+kall emoji          # Emoji picker
+kall bluetooth      # Bluetooth device manager
+kall tmux           # Tmux session manager
+```
+
+### Module management
+
+Add or remove modules at any time:
+
+```bash
+kall add emoji calculator systemd     # Install modules and their deps
+kall remove zen-workspaces            # Remove a module
+kall list                             # Show installed modules
+kall list --available                 # Show all modules for your platform
+```
+
+### Health check
+
+Run the built-in diagnostic tool to verify everything is working:
+
+```bash
+kall doctor
+```
+
+This checks dependencies, validates your configuration, and reports any issues.
+
+---
+
+## Keybinding injection
+
+kall can inject keybindings into your window manager config automatically:
+
+```bash
+kall keybinds inject    # Auto-detect WM and inject keybindings
+kall keybinds show      # Preview keybindings for your WM
+```
+
+The installer wizard offers to do this during setup. See [Keybindings](/user/keybindings) for full details.
+
+---
+
+## Next steps
+
+- [Configuration](/user/configuration) — full `kall.yml` reference
+- [Modules](/user/modules) — browse all 26 available modules
+- [Themes](/user/themes) — palettes, wallbash, and custom themes
