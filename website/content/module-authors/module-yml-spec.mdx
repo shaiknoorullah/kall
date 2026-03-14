@@ -1,0 +1,304 @@
+---
+title: Module YAML Spec
+description: Complete reference for every field in module.yml, with validation rules and examples.
+---
+
+The `module.yml` file is the manifest that every kall module ships. It declares metadata, platform compatibility, dependencies, keybindings, user-configurable options, and layout hints. The file is validated against `schemas/module.schema.yml` during installation and by CI.
+
+## Schema overview
+
+The schema version is `1.0`. All fields except `name` are optional.
+
+## Field reference
+
+### name
+
+**Type:** string (required)
+
+The unique module identifier. Must match the module's directory name. Used as the CLI command name (`kall <name>`).
+
+```yaml
+name: clipboard
+```
+
+Rules:
+- Lowercase alphanumeric characters and hyphens only
+- Must match the directory name under `modules/`
+- Must be unique across all modules
+
+### description
+
+**Type:** string
+
+A short, human-readable description displayed in `kall list` output and the module catalog.
+
+```yaml
+description: "Clipboard history manager with image support"
+```
+
+Keep it under 80 characters. Start with a noun or verb phrase, not "A module that...".
+
+### version
+
+**Type:** string
+
+The semantic version of the module. Follows the `major.minor.patch` format.
+
+```yaml
+version: "1.0.0"
+```
+
+### author
+
+**Type:** string
+
+The module author's name, handle, or organization.
+
+```yaml
+author: "shaiknoorullah"
+```
+
+### category
+
+**Type:** string (enum)
+
+The functional category for grouping in menus and the module catalog. Must be one of:
+
+| Value | Description |
+|---|---|
+| `system` | OS and hardware management (power, screenshot, bluetooth) |
+| `productivity` | Workflow and data tools (clipboard, calculator, emoji) |
+| `developer` | Development workflow (git, tmux, projects) |
+| `browser` | Web and browsing tools (websearch, bookmarks) |
+| `notes` | Note-taking and knowledge management (obsidian) |
+| `core` | Framework internals (dispatcher, not user-facing) |
+
+### layout
+
+**Type:** string
+
+The default menu layout style for this module. This is a hint to the backend adapter about how to render the menu.
+
+### platforms
+
+**Type:** object
+
+Declares which platforms the module supports.
+
+```yaml
+platforms:
+  linux:
+    x11: true
+    wayland: true
+  macos: true
+```
+
+| Key | Type | Description |
+|---|---|---|
+| `platforms.linux.x11` | boolean | Supports Linux with X11 display server |
+| `platforms.linux.wayland` | boolean | Supports Linux with Wayland display server |
+| `platforms.macos` | boolean | Supports macOS |
+
+Omitting a platform key is equivalent to `false`.
+
+### requires
+
+**Type:** object
+
+Declares runtime dependencies: kall lib modules and platform-specific tools.
+
+```yaml
+requires:
+  lib: [platform, menu, notify]
+  adapter_tools:
+    x11: [xclip, maim]
+    wayland: [wl-copy, grim, slurp]
+    darwin: [pbcopy]
+```
+
+#### requires.lib
+
+**Type:** string[]
+
+List of kall library modules that must be sourced. Common values:
+
+| Lib | Provides |
+|---|---|
+| `platform` | clipboard, screenshot, wallpaper, URL, lock functions |
+| `menu` | menu_dmenu, menu_launch, menu_calc, menu_keys, menu_supports |
+| `notify` | notify, notify_critical, notify_with_icon |
+| `theme` | load_theme, generate_wallbash, list_palettes, KALL_COLOR_* vars |
+| `keybinds` | _translate_keybind, inject_keybinds, remove_keybinds |
+
+#### requires.adapter_tools
+
+**Type:** object (session type -> string[])
+
+Maps session types (`x11`, `wayland`, `darwin`) to arrays of required system tool binaries. The `kall doctor` command checks these for the current session.
+
+### keybinding
+
+**Type:** object
+
+The default keyboard shortcut for this module.
+
+```yaml
+keybinding:
+  mods: [mod, shift]
+  key: e
+```
+
+#### keybinding.mods
+
+**Type:** string[]
+
+Array of modifier keys. Accepted values: `mod` (or `super`), `shift`, `ctrl`, `alt`.
+
+#### keybinding.key
+
+**Type:** string
+
+The key to bind. Examples: `e`, `v`, `Return`, `Print`, `1`, `space`, `period`.
+
+### config
+
+**Type:** object
+
+Declares module configuration metadata.
+
+```yaml
+config:
+  user_editable: [confirm_actions, default_engine]
+```
+
+#### config.user_editable
+
+**Type:** string[]
+
+List of configuration keys that users can override in `kall.yml`.
+
+### layout_hints
+
+**Type:** object
+
+Visual layout preferences that backend adapters honor when supported.
+
+```yaml
+layout_hints:
+  columns: 2
+  icon_size: 24
+  show_preview: true
+  preview: "chafa --size 40x20 {}"
+```
+
+| Key | Type | Description |
+|---|---|---|
+| `columns` | integer | Number of columns for grid layout |
+| `icon_size` | integer | Icon dimensions in pixels |
+| `show_preview` | boolean | Enable the preview pane |
+| `preview` | string | Preview command (fzf-style `{}` placeholder for the selected item) |
+
+## Complete examples
+
+### Simple module: power
+
+```yaml
+name: power
+description: "Shutdown, reboot, lock, suspend, hibernate"
+version: "1.0.0"
+author: "kall"
+category: system
+
+platforms:
+  linux:
+    x11: true
+    wayland: true
+  macos: true
+
+requires:
+  lib: [platform, menu, notify]
+  adapter_tools:
+    x11: [i3lock, slock]
+    wayland: [swaylock, hyprlock]
+    darwin: []
+
+keybinding:
+  mods: [mod, shift]
+  key: e
+
+config:
+  user_editable: [confirm_actions]
+
+layout_hints:
+  columns: 1
+  icon_size: 24
+  show_preview: false
+```
+
+Key characteristics:
+- Works on all platforms (X11, Wayland, macOS)
+- Lock screen tools are session-specific
+- macOS has no adapter tools (uses built-in `pmset` and AppleScript via lib functions)
+- Single-column list layout with icons, no preview
+
+### Complex module: websearch
+
+```yaml
+name: websearch
+description: "Search the web with autocomplete and multiple engines"
+version: "1.2.0"
+author: "kall"
+category: browser
+
+platforms:
+  linux:
+    x11: true
+    wayland: true
+  macos: true
+
+requires:
+  lib: [platform, menu, notify, theme]
+  adapter_tools:
+    x11: []
+    wayland: []
+    darwin: []
+
+keybinding:
+  mods: [mod]
+  key: s
+
+config:
+  user_editable: [default_engine, autocomplete, show_suggestions]
+
+layout_hints:
+  columns: 1
+  icon_size: 16
+  show_preview: true
+  preview: "curl -s 'https://api.duckduckgo.com/?q={}&format=json' | jq -r '.Abstract // \"No preview\"'"
+```
+
+Key characteristics:
+- No session-specific adapter tools (uses `open_url` which dispatches internally)
+- Preview pipeline fetches search summaries via curl and formats with jq
+- Multiple user-configurable options
+
+## Validation
+
+Module manifests are validated at two points:
+
+1. **Installation time** -- `kall add` validates against `schemas/module.schema.yml`
+2. **CI** -- the `validate` job checks all module manifests
+
+Run validation locally:
+
+```bash
+kall doctor
+```
+
+Common validation errors:
+
+| Error | Cause | Fix |
+|---|---|---|
+| Missing required field: name | `name` key absent | Add `name: <module-dir-name>` |
+| Invalid category | Category not in enum | Use one of: system, productivity, developer, browser, notes, core |
+| Name mismatch | `name` does not match directory | Rename the directory or the `name` field |
