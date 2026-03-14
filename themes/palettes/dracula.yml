@@ -1,0 +1,16 @@
+# themes/palettes/dracula.yml — Dracula color palette
+#
+# Reference: https://draculatheme.com/
+
+name: "Dracula"
+author: "Dracula Theme"
+
+colors:
+  main_bg: "#282A36"
+  main_fg: "#F8F8F2"
+  main_br: "#BD93F9"
+  main_ex: "#FF79C6"
+  select_bg: "#44475A"
+  select_fg: "#F8F8F2"
+  urgent_bg: "#FF5555"
+  urgent_fg: "#F8F8F2"

@@ -1,0 +1,16 @@
+# themes/palettes/nord.yml — Nord color palette
+#
+# Reference: https://www.nordtheme.com/
+
+name: "Nord"
+author: "Arctic Ice Studio"
+
+colors:
+  main_bg: "#2E3440"
+  main_fg: "#ECEFF4"
+  main_br: "#88C0D0"
+  main_ex: "#81A1C1"
+  select_bg: "#4C566A"
+  select_fg: "#ECEFF4"
+  urgent_bg: "#BF616A"
+  urgent_fg: "#ECEFF4"

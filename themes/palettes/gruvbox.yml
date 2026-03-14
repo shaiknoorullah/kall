@@ -1,0 +1,16 @@
+# themes/palettes/gruvbox.yml — Gruvbox color palette
+#
+# Reference: https://github.com/morhetz/gruvbox
+
+name: "Gruvbox"
+author: "morhetz"
+
+colors:
+  main_bg: "#282828"
+  main_fg: "#EBDBB2"
+  main_br: "#D79921"
+  main_ex: "#458588"
+  select_bg: "#504945"
+  select_fg: "#EBDBB2"
+  urgent_bg: "#CC241D"
+  urgent_fg: "#EBDBB2"

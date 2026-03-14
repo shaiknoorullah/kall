@@ -1,0 +1,16 @@
+# themes/palettes/tokyo-night.yml — Tokyo Night color palette
+#
+# Reference: https://github.com/enkia/tokyo-night-vscode-theme
+
+name: "Tokyo Night"
+author: "enkia"
+
+colors:
+  main_bg: "#1A1B26"
+  main_fg: "#C0CAF5"
+  main_br: "#7AA2F7"
+  main_ex: "#BB9AF7"
+  select_bg: "#33467C"
+  select_fg: "#C0CAF5"
+  urgent_bg: "#F7768E"
+  urgent_fg: "#C0CAF5"

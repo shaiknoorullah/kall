@@ -1,0 +1,16 @@
+# themes/palettes/rose-pine.yml — Rose Pine color palette
+#
+# Reference: https://rosepinetheme.com/
+
+name: "Rose Pine"
+author: "Rose Pine"
+
+colors:
+  main_bg: "#191724"
+  main_fg: "#E0DEF4"
+  main_br: "#C4A7E7"
+  main_ex: "#EBBCBA"
+  select_bg: "#26233A"
+  select_fg: "#E0DEF4"
+  urgent_bg: "#EB6F92"
+  urgent_fg: "#E0DEF4"
