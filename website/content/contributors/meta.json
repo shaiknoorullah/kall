@@ -1,4 +1,13 @@
 {
   "title": "Contributors",
-  "pages": ["index"]
+  "pages": [
+    "architecture",
+    "platform-adapters",
+    "module-system",
+    "backend-adapters",
+    "theme-engine",
+    "testing-strategy",
+    "ci-cd",
+    "distribution"
+  ]
 }

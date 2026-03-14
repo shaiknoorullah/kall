@@ -1,0 +1,432 @@
+---
+title: CI/CD
+description: GitHub Actions workflows, git hooks, commit conventions, label system, and automation.
+---
+
+kall uses GitHub Actions for continuous integration and release automation, lefthook for local git hooks, and a Kubernetes-inspired label system for issue and PR organization. This page covers the full CI/CD pipeline, commit message format, and label taxonomy.
+
+## GitHub Actions Workflows
+
+Five workflows automate testing, validation, releasing, and maintenance:
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `ci.yml` | PR to main, push to main | Lint, test matrix, structural validation |
+| `release.yml` | Tag push | Full CI, changelog, GitHub Release, AUR/Homebrew push, docs deploy |
+| `docs-deploy.yml` | Push to main | Deploy fumadocs site |
+| `module-validate.yml` | PR | Validate module.yml schemas and forbidden tool calls |
+| `stale.yml` | Schedule | Auto-close stale issues and PRs |
+
+### ci.yml
+
+The primary CI workflow runs three jobs in parallel:
+
+**lint** — static analysis on all `.sh` files (excluding test helpers):
+
+```yaml
+lint:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - name: Install tools
+      run: sudo apt-get install -y shellcheck && curl -sS https://webinstall.dev/shfmt | bash
+    - name: Shellcheck
+      run: find . -name '*.sh' -not -path '*/test_helper/*' -not -path '*/.claude/*' | xargs shellcheck
+    - name: shfmt
+      run: find . -name '*.sh' -not -path '*/test_helper/*' -not -path '*/.claude/*' | xargs shfmt -d -i 2 -ci
+```
+
+Shellcheck catches common bash pitfalls (unquoted variables, unreachable code, incorrect test syntax). shfmt enforces consistent formatting with 2-space indentation and case statement indentation (`-ci`).
+
+**test** — runs the full BATS test suite across a platform/session matrix:
+
+```yaml
+test:
+  runs-on: ${{ matrix.os }}
+  strategy:
+    matrix:
+      os: [ubuntu-22.04, ubuntu-24.04, macos-14]
+      session: [x11, wayland]
+      exclude:
+        - os: macos-14
+          session: x11
+        - os: macos-14
+          session: wayland
+      include:
+        - os: macos-14
+          session: darwin
+  steps:
+    - uses: actions/checkout@v4
+    - name: Install BATS
+      run: |
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          brew install bats-core
+        else
+          sudo apt-get install -y bats
+        fi
+    - name: Run tests
+      env:
+        XDG_SESSION_TYPE: ${{ matrix.session }}
+      run: ./tests/run_tests.sh
+```
+
+This produces five test runs: Ubuntu 22.04 (x11), Ubuntu 22.04 (wayland), Ubuntu 24.04 (x11), Ubuntu 24.04 (wayland), and macOS 14 (darwin). The `XDG_SESSION_TYPE` variable controls which platform code paths the tests exercise.
+
+**validate** — structural checks that enforce project invariants:
+
+```yaml
+validate:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - name: Check modules have tests
+      run: |
+        status=0
+        for dir in modules/*/; do
+          [ -d "$dir" ] || continue
+          name=$(basename "$dir")
+          [[ "$name" == "groups" ]] && continue
+          if [ ! -f "tests/test_${name}.bats" ]; then
+            echo "FAIL: modules/$name/ missing test file"
+            status=1
+          fi
+        done
+        exit $status
+    - name: Check no direct platform tool calls
+      run: |
+        forbidden="xclip\|wl-copy\|wl-paste\|grim\|maim\|hyprctl\|i3-msg\|i3lock\|swaymsg\|pbcopy\|pbpaste\|screencapture\|xdotool\|xrandr"
+        if grep -rn "$forbidden" modules/ --include='*.sh' 2>/dev/null | grep -v '#'; then
+          echo "FAIL: modules contain direct platform tool calls"
+          exit 1
+        fi
+        echo "OK: no forbidden tool calls"
+```
+
+The validation job enforces two critical invariants:
+- **INV-MOD-02:** every module has a test file
+- **INV-MOD-03:** no module directly calls platform-specific tools
+
+### release.yml
+
+Triggered when a version tag is pushed (e.g., `v2.1.0`). The release pipeline:
+
+1. Runs the full CI suite (lint + test + validate)
+2. Generates a changelog from conventional commits since the last tag
+3. Creates a GitHub Release with a `.tar.gz` tarball
+4. Pushes updated package definitions to AUR and Homebrew tap
+5. Deploys the documentation site
+
+### Labeler Workflow
+
+The `labeler.yml` workflow runs on `issues.opened`, `issues.edited`, `pull_request.opened`, `pull_request.synchronize`, and `pull_request.edited`. It uses path-based rules and commit message parsing to auto-apply labels.
+
+## Git Hooks (lefthook)
+
+Local git hooks are managed by lefthook and defined in `lefthook.yml`. Three hooks enforce code quality before code reaches CI:
+
+### pre-commit
+
+Runs shellcheck and shfmt in parallel on staged `.sh` files:
+
+```yaml
+pre-commit:
+  parallel: true
+  commands:
+    shellcheck:
+      glob: "*.sh"
+      run: shellcheck {staged_files}
+    shfmt:
+      glob: "*.sh"
+      run: shfmt -d -i 2 -ci {staged_files}
+```
+
+Both tools run only on staged files, not the entire repo. This keeps the hook fast. If either tool reports errors, the commit is rejected.
+
+### commit-msg
+
+Validates that the commit message follows the conventional format:
+
+```yaml
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        msg=$(head -1 "$1")
+        pattern='^(feat|fix|refactor|test|docs|chore|ci|perf|style|build)\((module|backend|plugin|lib|theme|installer|cli|docs|ci|schema)/[a-z0-9_-]+\): .+$'
+        if ! echo "$msg" | grep -qE "$pattern"; then
+          echo "ERROR: Commit message must match: type(area/name): description"
+          echo "  Types: feat, fix, refactor, test, docs, chore, ci, perf, style, build"
+          echo "  Areas: module, backend, plugin, lib, theme, installer, cli, docs, ci, schema"
+          echo "  Example: feat(module/clipboard): add image history support"
+          echo "  Got: $msg"
+          exit 1
+        fi
+```
+
+The regex requires the full `type(area/name): description` format. Bare scopes like `feat(clipboard)` without the area prefix are rejected.
+
+### pre-push
+
+Runs the full BATS test suite before pushing:
+
+```yaml
+pre-push:
+  commands:
+    tests:
+      run: ./tests/run_tests.sh
+```
+
+This ensures all tests pass locally before changes reach the remote. Catches issues that shellcheck and shfmt do not cover.
+
+## Commit Conventions
+
+Every commit message must follow the format:
+
+```
+type(area/name): description
+```
+
+### Types
+
+| Type | When to use |
+|---|---|
+| `feat` | New feature or capability |
+| `fix` | Bug fix |
+| `refactor` | Code restructuring without behavior change |
+| `test` | Adding or updating tests |
+| `docs` | Documentation changes |
+| `chore` | Maintenance tasks (deps, config, cleanup) |
+| `ci` | CI/CD pipeline changes |
+| `perf` | Performance improvement |
+| `style` | Formatting, whitespace, code style (no logic change) |
+| `build` | Build system or packaging changes |
+
+### Areas
+
+| Area | What it covers | Example scope |
+|---|---|---|
+| `module` | A specific module | `module/clipboard`, `module/power` |
+| `backend` | A menu backend adapter | `backend/rofi`, `backend/fzf` |
+| `plugin` | A plugin integration | `plugin/tmux`, `plugin/waybar` |
+| `lib` | Shared library code | `lib/platform`, `lib/menu` |
+| `theme` | Palettes, theme engine, wallbash | `theme/wallbash`, `theme/dracula` |
+| `installer` | Installer wizard | `installer/wizard`, `installer/deps` |
+| `cli` | Dispatcher, CLI commands | `cli/dispatcher`, `cli/doctor` |
+| `docs` | Documentation, website | `docs/module-authors`, `docs/readme` |
+| `ci` | GitHub Actions, hooks, CI config | `ci/release`, `ci/matrix` |
+| `schema` | YAML schemas | `schema/module`, `schema/palette` |
+
+### Examples
+
+```
+feat(module/clipboard): add image history support
+fix(module/power): hyprlock fallback when swaylock missing
+feat(backend/fzf): add chafa image preview support
+fix(backend/rofi): theme path resolution on macOS
+feat(plugin/waybar): add media now-playing module
+refactor(lib/platform): extract macOS clipboard adapter
+feat(theme/wallbash): add ImageMagick color quantization
+docs(docs/module-authors): add testing guide
+test(module/screenshot): add wayland mock tests
+chore(ci/release): add AUR push step
+fix(cli/doctor): false positive on optional deps
+feat(schema/module): add layout_hints validation
+```
+
+### CHANGELOG Generation
+
+`CHANGELOG.md` is auto-generated from conventional commits at release time. Entries are grouped by area:
+
+```markdown
+## [2.1.0] - 2026-04-15
+
+### Modules
+- **feat(module/clipboard):** add image history support
+- **fix(module/power):** hyprlock fallback when swaylock missing
+
+### Backends
+- **feat(backend/fzf):** add chafa image preview support
+
+### Plugins
+- **feat(plugin/waybar):** add media now-playing module
+
+### Lib
+- **refactor(lib/platform):** extract macOS clipboard adapter
+
+### Theme
+- **feat(theme/wallbash):** add ImageMagick color quantization
+```
+
+The `RELEASE.md` file included in GitHub Releases is a user-facing subset that only includes `feat`, `fix`, and `breaking` types. Internal changes (`refactor`, `test`, `chore`, `ci`) are excluded.
+
+## Label System
+
+kall uses a Kubernetes-inspired label taxonomy with `/` prefix namespacing. All label definitions live in `.github/labels.yml` and are synced to the repository via CI.
+
+### Label Categories
+
+**`kind/`** — classifies the type of issue or PR:
+
+| Label | Description |
+|---|---|
+| `kind/bug` | Something is not working |
+| `kind/feature` | New feature or enhancement request |
+| `kind/docs` | Documentation improvements |
+| `kind/breaking` | Breaking change to API, config, or CLI |
+
+**`area/`** — identifies which part of the system is affected. Maps directly to commit convention areas:
+
+| Label | Description |
+|---|---|
+| `area/module` | Related to modules |
+| `area/backend` | Related to backends (rofi, wofi, dmenu, etc.) |
+| `area/plugin` | Related to plugins |
+| `area/lib` | Related to core libraries |
+| `area/theme` | Related to themes and palettes |
+| `area/installer` | Related to the installer |
+| `area/ci` | Related to CI/CD and GitHub Actions |
+| `area/schema` | Related to YAML schemas and validation |
+| `area/docs` | Related to documentation and website |
+
+**Component labels** — specific component within an area. Applied alongside `area/`:
+
+- `component/clipboard`, `component/screenshot`, `component/wallpaper`, `component/power`
+- Additional component labels are generated from directory listings
+
+**`platform/`** — which platform is affected:
+
+| Label | Description |
+|---|---|
+| `platform/linux-x11` | Linux X11 specific |
+| `platform/linux-wayland` | Linux Wayland specific |
+| `platform/macos` | macOS specific |
+
+**`priority/`** — urgency:
+
+| Label | Description |
+|---|---|
+| `priority/critical` | Blocks release or breaks core functionality |
+| `priority/high` | Should be fixed in this release cycle |
+| `priority/backlog` | Agreed on need, not yet scheduled |
+
+**`size/`** — PR size (auto-applied by CI):
+
+| Label | Line count |
+|---|---|
+| `size/xs` | < 10 lines |
+| `size/s` | 10-50 lines |
+| `size/m` | 50-200 lines |
+| `size/l` | 200-500 lines |
+| `size/xl` | 500+ lines |
+
+**`triage/`** — triage status:
+
+| Label | Description |
+|---|---|
+| `triage/needs-info` | Needs more information from reporter |
+| `triage/accepted` | Issue has been triaged and accepted |
+| `triage/duplicate` | Duplicate of another issue |
+
+**`do-not-merge/`** — merge blockers:
+
+| Label | Description |
+|---|---|
+| `do-not-merge/wip` | Work in progress, not ready for merge |
+| `do-not-merge/needs-rebase` | PR needs rebase before merging |
+| `do-not-merge/hold` | PR is on hold |
+
+**Community labels:**
+
+| Label | Description |
+|---|---|
+| `good first issue` | Good for newcomers |
+| `help wanted` | Extra attention is needed |
+| `hacktoberfest` | Hacktoberfest eligible |
+
+### Total Label Count
+
+Approximately 50 labels: 4 kind + 10 area + ~30 component + 3 platform + 3 priority + 5 size + 3 triage + 3 do-not-merge + 3 community. The count grows only when new modules, backends, or plugins are added.
+
+### What We Intentionally Exclude
+
+- No `lifecycle/` labels — the stale bot uses time-based rules, not labels
+- No `needs-*` labels — issue templates enforce required fields, CI blocks invalid commits
+- No `kind/support` — support goes to Discussions, not Issues
+- No `kind/deprecation` or `kind/failing-test` — `kind/bug` covers test failures, deprecation is `kind/breaking` with a migration path
+- No `priority/awaiting-more-evidence` — that is `triage/needs-info`
+
+## Label Automation
+
+Labels are applied automatically through three mechanisms:
+
+### Path-Based Auto-Labeling
+
+The `labeler.yml` workflow uses `actions/labeler` with path-based rules to apply `area/` and component labels to PRs:
+
+```yaml
+# .github/labeler.yml (path rules)
+area/module:
+  - modules/**
+area/backend:
+  - backends/**
+area/plugin:
+  - plugins/**
+area/lib:
+  - lib/**
+area/theme:
+  - themes/**
+  - backends/*/themes/**
+area/installer:
+  - installer/**
+area/cli:
+  - kall
+area/docs:
+  - website/**
+area/ci:
+  - .github/**
+area/schema:
+  - schemas/**
+
+# Component-level auto-labels
+module/power:
+  - modules/power/**
+module/clipboard:
+  - modules/clipboard/**
+backend/rofi:
+  - backends/rofi/**
+backend/fzf:
+  - backends/fzf/**
+plugin/zsh:
+  - plugins/zsh/**
+plugin/tmux:
+  - plugins/tmux/**
+```
+
+### Issue Template Labels
+
+GitHub issue forms set labels via the `labels:` field in the template YAML. When a user selects the bug report template, `kind/bug` is auto-applied. Feature requests get `kind/feature`, and so on.
+
+### Stale Automation
+
+| Event | Action |
+|---|---|
+| No activity for 60 days | Bot posts warning comment |
+| No activity for 90 days | Bot closes issue |
+| `priority/critical` label | Exempt from stale automation |
+
+### PR Auto-Labels
+
+| Trigger | Labels applied |
+|---|---|
+| PR diff size | `size/xs` through `size/xl` |
+| Files changed match path patterns | `area/*` + component labels |
+| Commit message scopes | `area/*` + component labels parsed from conventional commits |
+| PR is draft | `do-not-merge/wip` (auto-removed when undrafted) |
+
+## Issue and PR Templates
+
+The project uses three types of templates:
+
+- **Issues:** bug report (YAML form), feature request (YAML form), module proposal (YAML form)
+- **PRs:** default, new module, bugfix
+- **Discussions:** ideas, show-and-tell (custom modules), Q&A
