@@ -1,0 +1,128 @@
+# Kind labels
+- name: kind/bug
+  color: "#d73a4a"
+  description: Something isn't working
+- name: kind/feature
+  color: "#a2eeef"
+  description: New feature or enhancement request
+- name: kind/docs
+  color: "#0075ca"
+  description: Documentation improvements
+- name: kind/breaking
+  color: "#e4e669"
+  description: Breaking change
+
+# Area labels
+- name: area/module
+  color: "#7057ff"
+  description: Related to modules
+- name: area/backend
+  color: "#7057ff"
+  description: Related to backends (rofi, wofi, dmenu, etc.)
+- name: area/plugin
+  color: "#7057ff"
+  description: Related to plugins
+- name: area/lib
+  color: "#7057ff"
+  description: Related to core libraries
+- name: area/theme
+  color: "#7057ff"
+  description: Related to themes and palettes
+- name: area/installer
+  color: "#7057ff"
+  description: Related to the installer
+- name: area/ci
+  color: "#7057ff"
+  description: Related to CI/CD and GitHub Actions
+- name: area/schema
+  color: "#7057ff"
+  description: Related to YAML schemas and validation
+- name: area/docs
+  color: "#7057ff"
+  description: Related to documentation and website
+
+# Component labels (samples)
+- name: component/clipboard
+  color: "#7057ff"
+  description: Clipboard module
+- name: component/screenshot
+  color: "#7057ff"
+  description: Screenshot module
+- name: component/wallpaper
+  color: "#7057ff"
+  description: Wallpaper module
+- name: component/power
+  color: "#7057ff"
+  description: Power menu module
+
+# Platform labels
+- name: platform/linux-x11
+  color: "#1d76db"
+  description: Linux X11 specific
+- name: platform/linux-wayland
+  color: "#1d76db"
+  description: Linux Wayland specific
+- name: platform/macos
+  color: "#1d76db"
+  description: macOS specific
+
+# Priority labels
+- name: priority/critical
+  color: "#b60205"
+  description: Critical issue requiring immediate attention
+- name: priority/high
+  color: "#d93f0b"
+  description: High priority
+- name: priority/backlog
+  color: "#fbca04"
+  description: Low priority, backlog item
+
+# Size labels
+- name: size/xs
+  color: "#0e8a16"
+  description: Extra small change (< 10 lines)
+- name: size/s
+  color: "#0e8a16"
+  description: Small change (10-50 lines)
+- name: size/m
+  color: "#0e8a16"
+  description: Medium change (50-200 lines)
+- name: size/l
+  color: "#0e8a16"
+  description: Large change (200-500 lines)
+- name: size/xl
+  color: "#0e8a16"
+  description: Extra large change (500+ lines)
+
+# Triage labels
+- name: triage/needs-info
+  color: "#fef2c0"
+  description: Needs more information from reporter
+- name: triage/accepted
+  color: "#fef2c0"
+  description: Issue has been triaged and accepted
+- name: triage/duplicate
+  color: "#fef2c0"
+  description: Duplicate of another issue
+
+# Do-not-merge labels
+- name: do-not-merge/wip
+  color: "#b60205"
+  description: Work in progress, not ready for merge
+- name: do-not-merge/needs-rebase
+  color: "#b60205"
+  description: PR needs rebase before merging
+- name: do-not-merge/hold
+  color: "#b60205"
+  description: PR is on hold
+
+# Community labels
+- name: good first issue
+  color: "#7057ff"
+  description: Good for newcomers
+- name: help wanted
+  color: "#008672"
+  description: Extra attention is needed
+- name: hacktoberfest
+  color: "#ff7518"
+  description: Hacktoberfest eligible

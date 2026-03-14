@@ -1,0 +1,30 @@
+name: Module Proposal
+description: Propose a new kall module
+labels: ["kind/feature", "area/module"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Module name
+      placeholder: e.g., brightness, network, docker
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What does it do?
+    validations:
+      required: true
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platform support
+      options:
+        - label: Linux (X11)
+        - label: Linux (Wayland)
+        - label: macOS
+  - type: textarea
+    id: tools
+    attributes:
+      label: External tools needed
+      description: What system tools does this module require?

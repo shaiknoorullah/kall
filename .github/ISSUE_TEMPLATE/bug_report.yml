@@ -1,0 +1,39 @@
+name: Bug Report
+description: Report a bug in kall
+labels: ["kind/bug"]
+body:
+  - type: input
+    id: module
+    attributes:
+      label: Module/Component
+      description: Which module, backend, or lib component?
+      placeholder: e.g., module/clipboard, backend/rofi, lib/platform
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux (X11)
+        - Linux (Wayland)
+        - macOS
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Run with `kall --debug <command>` and paste output"
+      render: shell

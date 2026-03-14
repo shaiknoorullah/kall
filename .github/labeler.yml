@@ -1,0 +1,31 @@
+area/module:
+  - modules/**
+
+area/backend:
+  - kall/**
+
+area/plugin:
+  - modules/*/plugins/**
+
+area/lib:
+  - lib/**
+
+area/theme:
+  - themes/**
+
+area/installer:
+  - install*
+  - scripts/install*
+
+area/cli:
+  - kall
+
+area/docs:
+  - docs/**
+  - "*.md"
+
+area/ci:
+  - .github/**
+
+area/schema:
+  - schemas/**

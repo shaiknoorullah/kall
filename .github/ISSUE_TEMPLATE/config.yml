@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Support
+    url: https://github.com/shaiknoorullah/kall/discussions/categories/q-a
+    about: Ask questions in Discussions
+  - name: Show & Tell
+    url: https://github.com/shaiknoorullah/kall/discussions/categories/show-and-tell
+    about: Share your custom modules and setups

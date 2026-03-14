@@ -1,0 +1,26 @@
+name: Feature Request
+description: Suggest a feature or enhancement
+labels: ["kind/feature"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Module (new or existing)
+        - Backend
+        - Plugin
+        - Theme
+        - Installer
+        - CLI
+        - Documentation
+  - type: textarea
+    id: description
+    attributes:
+      label: What would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
