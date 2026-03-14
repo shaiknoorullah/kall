@@ -141,11 +141,12 @@ list_palettes() {
 # Auto-load on source
 # =============================================================================
 
+# shellcheck disable=SC2119
 if [[ "${KALL_DYNAMIC_THEME:-false}" == "true" ]]; then
   # Try wallbash first, fall back to static palette
   if ! generate_wallbash "${KALL_WALLPAPER:-}"; then
     load_theme
   fi
 else
-  load_theme # shellcheck disable=SC2119
+  load_theme
 fi
