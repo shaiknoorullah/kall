@@ -17,7 +17,7 @@
 
 Every Linux rice eventually grows a pile of disconnected scripts — one for the power menu, another for screenshots, a third for clipboard history, all hardwired to one menu backend. Swap rofi for wofi and half of them break.
 
-kall is a modular, backend-agnostic command center. Pure bash, zero Python. 26 modules, 6 menu backends, 6 color palettes. Install only what you need, swap the backend without touching your config.
+kall is a modular, backend-agnostic command center. Pure bash, 26 modules, 6 menu backends, 6 color palettes. Install only what you need, swap the backend without touching your config.
 
 ## Quick install
 
@@ -133,7 +133,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Standing on the shoulders of:
 
-[HyDE](https://github.com/HyDE-Project/HyDE) (inspiration and borrowed wisdom) — [Catppuccin](https://catppuccin.com) — [Dracula](https://draculatheme.com) — [Nord](https://nordtheme.com) — [Gruvbox](https://github.com/morhetz/gruvbox) — [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme) — [Rose Pine](https://rosepinetheme.com) — [fzf](https://github.com/junegunn/fzf) — [rofi](https://github.com/davatorium/rofi) — [bat](https://github.com/sharkdp/bat) — [eza](https://github.com/eza-community/eza) — [chafa](https://github.com/hpjansson/chafa) — [fumadocs](https://fumadocs.vercel.app) — [lefthook](https://github.com/evilmartians/lefthook) — [bats-core](https://github.com/bats-core/bats-core) — [Kubernetes](https://kubernetes.io) (label system design)
+- [HyDE](https://github.com/HyDE-Project/HyDE) (inspiration and borrowed wisdom)
+- [Catppuccin](https://catppuccin.com)
+- [Dracula](https://draculatheme.com)
+- [Nord](https://nordtheme.com)
+- [Gruvbox](https://github.com/morhetz/gruvbox)
+- [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme)
+- [Rose Pine](https://rosepinetheme.com)
+- [fzf](https://github.com/junegunn/fzf)
+- [rofi](https://github.com/davatorium/rofi)
+- [bat](https://github.com/sharkdp/bat)
+- [eza](https://github.com/eza-community/eza)
+- [chafa](https://github.com/hpjansson/chafa)
+- [fumadocs](https://fumadocs.vercel.app)
+- [lefthook](https://github.com/evilmartians/lefthook)
+- [bats-core](https://github.com/bats-core/bats-core)
+- [Kubernetes](https://kubernetes.io) (label system design)
 
 ## License
 
