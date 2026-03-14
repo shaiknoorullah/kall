@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -u
+
+# =============================================================================
+# kall — modular command center dispatcher
+# =============================================================================
+
+KALL_VERSION="2.0.0"
+KALL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KALL_LIB_DIR="${KALL_LIB_DIR:-$KALL_ROOT/lib}"
+KALL_BACKENDS_DIR="${KALL_BACKENDS_DIR:-$KALL_ROOT/backends}"
+KALL_MODULES_DIR="${KALL_MODULES_DIR:-$KALL_ROOT/modules}"
+
+export KALL_VERSION KALL_ROOT KALL_LIB_DIR KALL_BACKENDS_DIR KALL_MODULES_DIR
+
+# =============================================================================
+# Usage
+# =============================================================================
+
+_kall_usage() {
+  cat <<EOF
+kall $KALL_VERSION — modular command center
+
+Usage:
+  kall <module>          Run a module
+  kall <group>           Run a module group
+  kall <command> [args]  Run a CLI command
+
+Modules:
+  kall list              List enabled modules
+  kall list --available  List all available modules
+
+Commands:
+  setup       Initial setup wizard
+  doctor      Check system health
+  theme       Manage color themes
+  style       Manage launcher styles
+  keybinds    Manage keybindings
+  update      Update kall
+  uninstall   Remove kall
+
+Flags:
+  --help, -h       Show this help
+  --version, -v    Show version
+  --debug          Enable debug logging
+EOF
+}
+
+# =============================================================================
+# Flag handling
+# =============================================================================
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      _kall_usage
+      exit 0
+      ;;
+    --version|-v)
+      echo "kall $KALL_VERSION"
+      exit 0
+      ;;
+    --debug)
+      KALL_LOG_LEVEL="DEBUG"
+      export KALL_LOG_LEVEL
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# =============================================================================
+# Bootstrap: source lib files
+# =============================================================================
+
+# shellcheck source=lib/core.sh
+source "$KALL_LIB_DIR/core.sh"
+
+# shellcheck source=lib/platform.sh
+source "$KALL_LIB_DIR/platform.sh"
+
+# shellcheck source=lib/menu.sh
+source "$KALL_LIB_DIR/menu.sh"
+
+# shellcheck source=lib/theme.sh
+source "$KALL_LIB_DIR/theme.sh"
+
+# shellcheck source=lib/notify.sh
+source "$KALL_LIB_DIR/notify.sh"
+
+# shellcheck source=lib/keybinds.sh
+source "$KALL_LIB_DIR/keybinds.sh"
+
+# =============================================================================
+# Routing
+# =============================================================================
+
+cmd="${1:-}"
+shift 2>/dev/null || true
+
+if [[ -z "$cmd" ]]; then
+  _kall_usage
+  exit 1
+fi
+
+# 1. Group YAML
+if [[ -f "$KALL_MODULES_DIR/groups/${cmd}.yml" ]]; then
+  echo "Group '$cmd' — not yet implemented"
+  exit 0
+fi
+
+# 2. Module script
+if [[ -f "$KALL_MODULES_DIR/${cmd}/${cmd}.sh" ]]; then
+  exec "$KALL_MODULES_DIR/${cmd}/${cmd}.sh" "$@"
+fi
+
+# 3. CLI commands
+case "$cmd" in
+  list)
+    if [[ "${1:-}" == "--available" ]]; then
+      for mod_dir in "$KALL_MODULES_DIR"/*/; do
+        [[ -d "$mod_dir" ]] || continue
+        if [[ -f "${mod_dir}module.yml" ]]; then
+          basename "$mod_dir"
+        fi
+      done
+      exit 0
+    fi
+    # Default: list enabled modules from kall.yml
+    if command -v yq &>/dev/null && [[ -f "$KALL_CONFIG_FILE" ]]; then
+      local_modules="$(yq '.modules[]' "$KALL_CONFIG_FILE" 2>/dev/null)" || local_modules=""
+      if [[ -n "$local_modules" ]]; then
+        echo "$local_modules"
+      else
+        echo "(none — run 'kall setup')"
+      fi
+    else
+      echo "(none — run 'kall setup')"
+    fi
+    exit 0
+    ;;
+  add|remove|theme|style|keybinds|setup|update|doctor|uninstall|create-module|plugin)
+    echo "kall $cmd: coming soon"
+    exit 0
+    ;;
+esac
+
+# 4. Unknown
+log_error "unknown command or module: $cmd"
+exit 1
