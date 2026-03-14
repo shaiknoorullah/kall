@@ -41,6 +41,7 @@ get_monitors() {
 get_active_window() {
   if command -v xdotool &>/dev/null; then
     local wid wname wclass wpid
+    # shellcheck disable=SC2034
     wid="$(xdotool getactivewindow 2>/dev/null)" || {
       echo '{"title":"unknown","class":"unknown","pid":0}'
       return
