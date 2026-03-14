@@ -1,0 +1,72 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get install -y shellcheck && curl -sS https://webinstall.dev/shfmt | bash
+      - name: Shellcheck
+        run: find . -name '*.sh' -not -path '*/test_helper/*' -not -path '*/.claude/*' | xargs shellcheck
+      - name: shfmt
+        run: find . -name '*.sh' -not -path '*/test_helper/*' -not -path '*/.claude/*' | xargs shfmt -d -i 2 -ci
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-14]
+        session: [x11, wayland]
+        exclude:
+          - os: macos-14
+            session: x11
+          - os: macos-14
+            session: wayland
+        include:
+          - os: macos-14
+            session: darwin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install BATS
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install bats-core
+          else
+            sudo apt-get install -y bats
+          fi
+      - name: Run tests
+        env:
+          XDG_SESSION_TYPE: ${{ matrix.session }}
+        run: ./tests/run_tests.sh
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check modules have tests
+        run: |
+          status=0
+          for dir in modules/*/; do
+            [ -d "$dir" ] || continue
+            name=$(basename "$dir")
+            [[ "$name" == "groups" ]] && continue
+            if [ ! -f "tests/test_${name}.bats" ]; then
+              echo "FAIL: modules/$name/ missing test file"
+              status=1
+            fi
+          done
+          exit $status
+      - name: Check no direct platform tool calls
+        run: |
+          forbidden="xclip\|wl-copy\|wl-paste\|grim\|maim\|hyprctl\|i3-msg\|i3lock\|swaymsg\|pbcopy\|pbpaste\|screencapture\|xdotool\|xrandr"
+          if grep -rn "$forbidden" modules/ --include='*.sh' 2>/dev/null | grep -v '#'; then
+            echo "FAIL: modules contain direct platform tool calls"
+            exit 1
+          fi
+          echo "OK: no forbidden tool calls"
