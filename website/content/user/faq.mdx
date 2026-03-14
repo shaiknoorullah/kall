@@ -1,0 +1,176 @@
+---
+title: FAQ
+description: Frequently asked questions about kall, its design, and compatibility.
+---
+
+## What does "kall" mean?
+
+"Kall" comes from the Scandinavian word for "call" or "summon." It reflects the tool's purpose: summoning menus, modules, and actions through a single command.
+
+## Why is kall written in bash?
+
+Bash is universal on Linux and macOS. It requires no runtime, no compilation, and no dependency management beyond the shell itself. Since kall's primary job is orchestrating CLI tools (menu launchers, clipboard managers, screenshot tools, notification daemons), bash is the natural language for that domain. Every target system already has it.
+
+kall does require bash 4+ for associative arrays and other modern features. macOS ships bash 3.x, so Homebrew users need to install a newer version (`brew install bash`).
+
+## Does kall replace rofi?
+
+No. kall uses rofi (or any other supported launcher) as a backend. Rofi renders the menu UI; kall provides the module logic, theming, keybinding translation, and cross-platform abstraction on top of it. You can swap rofi for wofi, fzf, fuzzel, tofi, or dmenu without changing any module code.
+
+## Can I use only some modules?
+
+Yes. kall is fully modular. Install only what you need:
+
+```bash
+kall add power clipboard screenshot
+```
+
+During installation, pick the "minimal" preset (5 modules) or choose individual modules from the list. Unused modules are not loaded, not sourced, and have no runtime cost.
+
+## Can I switch menu backends?
+
+Yes. Change the `menu_backend` key in `kall.yml`:
+
+```yaml
+menu_backend: fzf
+```
+
+Or from the command line:
+
+```bash
+kall theme set-backend fzf
+```
+
+All modules work with every backend. Layout hints (icons, columns, preview panes) degrade gracefully when the backend does not support them. For example, fzf supports preview pipelines but not icons; dmenu supports neither.
+
+Supported backends: `rofi`, `wofi`, `fuzzel`, `tofi`, `dmenu`, `fzf`.
+
+## Can I disable kall's styling?
+
+Yes. If you want your system theme, compositor, or WM to handle all visual appearance:
+
+```yaml
+appearance:
+  managed: false
+```
+
+This disables all appearance arguments kall passes to the menu backend. The launcher renders with its own default theme.
+
+You can also disable individual properties:
+
+```yaml
+appearance:
+  managed: true
+  font: "JetBrainsMono Nerd Font 12"
+  icon_theme: false
+  border_radius: false
+  border_width: 2
+  opacity: false
+```
+
+Any property set to `false` is skipped entirely -- kall does not pass that argument to the backend.
+
+## What are the hard dependencies?
+
+kall has three hard dependencies that every installation requires:
+
+| Dependency | Purpose |
+|---|---|
+| A menu launcher | Render menus. At least one of: rofi, wofi, fuzzel, tofi, dmenu, fzf |
+| `yq` | Parse YAML configuration and module manifests (Go-based, by Mike Farah) |
+| `jq` | Parse JSON output from system tools and APIs |
+
+Everything else is per-module. Each module declares its own dependencies in `module.yml` under `requires.adapter_tools`. The `kall doctor` command shows which tools are missing for your installed modules.
+
+Common per-module dependencies include:
+
+| Tool | Used by | Session |
+|---|---|---|
+| `xclip` | clipboard, screenshot | X11 |
+| `wl-copy` / `wl-paste` | clipboard, screenshot | Wayland |
+| `grim` + `slurp` | screenshot | Wayland |
+| `maim` | screenshot | X11 |
+| `playerctl` | media | All |
+| `bluetoothctl` | bluetooth | Linux |
+| `systemctl` | systemd, power | Linux |
+| `ImageMagick` | wallbash (dynamic theming) | All |
+
+## Does kall work on macOS?
+
+Yes, with limitations. kall detects macOS via `uname` and sets `KALL_OS=darwin` and `KALL_SESSION=darwin`. Platform-specific lib functions dispatch to macOS equivalents:
+
+| Function | macOS tool |
+|---|---|
+| `clipboard_copy` | `pbcopy` |
+| `clipboard_paste` | `pbpaste` |
+| `screenshot_full` | `screencapture` |
+| `screenshot_area` | `screencapture -s` |
+| `screenshot_window` | `screencapture -w` |
+| `open_url` | `open` |
+| `set_wallpaper` | `osascript` (Finder AppleScript) |
+| `notify` | `osascript` (notification center) |
+
+Some modules are unavailable on macOS because they depend on Linux-only subsystems:
+
+- **display** -- requires `xrandr` or Wayland protocols for monitor management
+- **bluetooth** -- requires `bluetoothctl` (Linux BlueZ stack)
+- **systemd** -- requires `systemctl` (Linux init system)
+- **notifications** -- requires `notify-send` / libnotify
+
+Each module declares its platform support in `module.yml`. The `kall list` command only shows modules compatible with your detected platform.
+
+For keybindings on macOS, kall generates skhd syntax:
+
+```
+shift + cmd - e : kall power
+```
+
+## How do I update kall?
+
+If you installed via the curl installer or GitHub release:
+
+```bash
+kall update
+```
+
+If you installed via a package manager:
+
+```bash
+# AUR
+yay -Syu kall
+
+# Homebrew
+brew upgrade kall
+```
+
+## Can I create my own modules?
+
+Yes. See the [Module Authors](/docs/module-authors) section for a complete guide. The short version:
+
+```bash
+kall create-module my-module
+```
+
+This scaffolds a module directory with `module.yml`, an entry script, and a test file. Write your logic using kall's lib functions (`menu_launch`, `clipboard_copy`, `notify`, etc.) and submit a PR.
+
+## Where are logs stored?
+
+Log files live in `$XDG_STATE_HOME/kall/logs/` (default: `~/.local/state/kall/logs/`):
+
+- **kall.log** -- INFO-level and above messages from normal operation
+- **debug.log** -- all log levels, only written when debug mode is active (`kall --debug`)
+
+Logs rotate automatically when `kall.log` exceeds 1 MB (configurable). See [Troubleshooting](/docs/user/troubleshooting) for details.
+
+## How do I report a bug?
+
+Open an issue on [GitHub](https://github.com/shaiknoorullah/kall/issues) using the bug report template. Include:
+
+1. Output of `kall doctor`
+2. Your `kall.yml` (remove any sensitive data)
+3. Relevant log entries from `~/.local/state/kall/logs/kall.log`
+4. If possible, debug output: `kall --debug <module> 2>debug-output.txt`
+
+## Does kall phone home or collect telemetry?
+
+No. kall makes no network requests except those explicitly initiated by modules (e.g., the websearch module opens a URL in your browser, the weather module queries wttr.in). There is no analytics, no crash reporting, and no update checking. The `kall update` command is the only network operation in the framework itself.
