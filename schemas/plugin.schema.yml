@@ -1,0 +1,66 @@
+# schemas/plugin.schema.yml — Schema definition for plugin.yml
+#
+# Validates plugin manifests for external tool integrations
+# (zsh, tmux, waybar, polybar, etc.).
+
+schema:
+  version: "1.0"
+  description: "kall plugin manifest schema"
+
+properties:
+
+  name:
+    type: string
+    required: true
+    description: "Unique plugin identifier"
+
+  description:
+    type: string
+    description: "Short human-readable description of the plugin"
+
+  version:
+    type: string
+    description: "Semantic version of the plugin"
+
+  author:
+    type: string
+    description: "Plugin author name or handle"
+
+  category:
+    type: string
+    description: "Plugin category (e.g. shell, status-bar, compositor)"
+
+  platforms:
+    type: object
+    description: "Platform compatibility flags"
+    properties:
+      linux:
+        type: object
+        properties:
+          x11:
+            type: boolean
+          wayland:
+            type: boolean
+      macos:
+        type: boolean
+
+  requires:
+    type: object
+    description: "Runtime dependencies"
+    properties:
+      tools:
+        type: array
+        description: "External tools the plugin depends on"
+        items:
+          type: string
+
+  setup:
+    type: object
+    description: "Setup and teardown commands"
+    properties:
+      install:
+        type: string
+        description: "Shell command to install/activate the plugin"
+      uninstall:
+        type: string
+        description: "Shell command to remove/deactivate the plugin"

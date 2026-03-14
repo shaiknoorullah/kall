@@ -1,0 +1,60 @@
+# schemas/palette.schema.yml — Schema definition for palette YAML files
+#
+# Validates color palette definitions in themes/palettes/.
+
+schema:
+  version: "1.0"
+  description: "kall color palette schema"
+
+properties:
+
+  name:
+    type: string
+    required: true
+    description: "Palette display name"
+
+  author:
+    type: string
+    description: "Palette author or upstream source"
+
+  colors:
+    type: object
+    required: true
+    description: "Core color definitions (hex strings)"
+    properties:
+      main_bg:
+        type: string
+        required: true
+        description: "Primary background color"
+      main_fg:
+        type: string
+        required: true
+        description: "Primary foreground/text color"
+      main_br:
+        type: string
+        required: true
+        description: "Border/accent color"
+      main_ex:
+        type: string
+        required: true
+        description: "Extra/highlight color"
+      select_bg:
+        type: string
+        required: true
+        description: "Selected item background"
+      select_fg:
+        type: string
+        required: true
+        description: "Selected item foreground"
+      urgent_bg:
+        type: string
+        description: "Urgent/error background"
+      urgent_fg:
+        type: string
+        description: "Urgent/error foreground"
+
+  opacity:
+    type: object
+    description: "Optional opacity overrides per element"
+    additionalProperties:
+      type: number

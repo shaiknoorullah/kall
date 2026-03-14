@@ -1,0 +1,57 @@
+# schemas/group.schema.yml — Schema definition for module group YAML files
+#
+# Validates group definitions that combine multiple modules into a
+# single launcher interface (tabs, breadcrumbs, sections, or list).
+
+schema:
+  version: "1.0"
+  description: "kall module group schema"
+
+properties:
+
+  name:
+    type: string
+    required: true
+    description: "Unique group identifier"
+
+  type:
+    type: string
+    required: true
+    description: "Must be 'group' to distinguish from module manifests"
+    enum: [group]
+
+  description:
+    type: string
+    description: "Short human-readable description of the group"
+
+  layout:
+    type: string
+    description: "Visual layout for combining member modules"
+    enum: [tabs, breadcrumbs, sections, list]
+
+  members:
+    type: array
+    description: "Modules included in this group"
+    items:
+      type: object
+      properties:
+        module:
+          type: string
+          description: "Module name (must match a modules/<name>/ directory)"
+        icon:
+          type: string
+          description: "Nerd Font icon or emoji for the module entry"
+        label:
+          type: string
+          description: "Display label override (defaults to module name)"
+
+  keybinding:
+    type: object
+    description: "Default keybinding to open this group"
+    properties:
+      mods:
+        type: array
+        items:
+          type: string
+      key:
+        type: string

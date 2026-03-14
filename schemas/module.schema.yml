@@ -1,0 +1,87 @@
+# schemas/module.schema.yml — Schema definition for module.yml
+#
+# Validates the module manifest that each kall module ships.
+
+schema:
+  version: "1.0"
+  description: "kall module manifest schema"
+
+properties:
+
+  name:
+    type: string
+    required: true
+    description: "Unique module identifier"
+
+  description:
+    type: string
+    description: "Short human-readable description of the module"
+
+  version:
+    type: string
+    description: "Semantic version of the module"
+
+  author:
+    type: string
+    description: "Module author name or handle"
+
+  category:
+    type: string
+    description: "Functional category for grouping in menus"
+    enum: [system, productivity, developer, browser, notes, core]
+
+  layout:
+    type: string
+    description: "Default menu layout style for this module"
+
+  platforms:
+    type: object
+    description: "Platform compatibility flags"
+    properties:
+      linux:
+        type: object
+        properties:
+          x11:
+            type: boolean
+          wayland:
+            type: boolean
+      macos:
+        type: boolean
+
+  requires:
+    type: object
+    description: "Runtime dependencies"
+    properties:
+      lib:
+        type: array
+        description: "Required kall lib modules"
+        items:
+          type: string
+      adapter_tools:
+        type: object
+        description: "Required platform tools per session type"
+        additionalProperties:
+          type: array
+          items:
+            type: string
+
+  keybinding:
+    type: object
+    description: "Default keybinding for this module"
+    properties:
+      mods:
+        type: array
+        items:
+          type: string
+      key:
+        type: string
+
+  config:
+    type: object
+    description: "Module configuration metadata"
+    properties:
+      user_editable:
+        type: array
+        description: "List of config keys the user can override in kall.yml"
+        items:
+          type: string
