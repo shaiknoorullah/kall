@@ -22,6 +22,7 @@ export KALL_PALETTES_DIR
 # load_theme [PALETTE_NAME]
 #   Reads colors from a YAML palette file via yq and exports them.
 #   Falls back to catppuccin-mocha if the requested palette is not found.
+# shellcheck disable=SC2120
 load_theme() {
   local palette_name="${1:-${KALL_THEME:-catppuccin-mocha}}"
   local palette_file="$KALL_PALETTES_DIR/${palette_name}.yml"
@@ -146,5 +147,5 @@ if [[ "${KALL_DYNAMIC_THEME:-false}" == "true" ]]; then
     load_theme
   fi
 else
-  load_theme
+  load_theme # shellcheck disable=SC2119
 fi

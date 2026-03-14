@@ -63,6 +63,7 @@ _translate_hyprland() {
   for mod in "${mod_array[@]}"; do
     mod="$(echo "$mod" | tr -d ' ')"
     case "${mod,,}" in
+      # shellcheck disable=SC2016
       mod|super) hypr_mods+='$mainMod ' ;;
       shift)     hypr_mods+="SHIFT " ;;
       ctrl)      hypr_mods+="CTRL " ;;
