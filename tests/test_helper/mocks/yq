@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Mock for yq — checks for TEST_TEMP/yq_response file
+MOCK_NAME="yq"
+echo "$MOCK_NAME $*" >> "${MOCK_LOG:-/dev/null}"
+
+# Check for a yq_response file in TEST_TEMP
+if [[ -n "${TEST_TEMP:-}" && -f "$TEST_TEMP/yq_response" ]]; then
+  cat "$TEST_TEMP/yq_response"
+  exit 0
+fi
+
+# Fallback to single-output file
+if [[ -n "${MENU_MOCK_OUTPUT:-}" && -f "$MENU_MOCK_OUTPUT" ]]; then
+  cat "$MENU_MOCK_OUTPUT"
+fi
+exit 0

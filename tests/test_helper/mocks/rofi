@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Mock for rofi — supports multi-call output via MENU_MULTI_OUTPUT
+MOCK_NAME="rofi"
+echo "$MOCK_NAME $*" >> "${MOCK_LOG:-/dev/null}"
+
+# Multi-call support: read the Nth output from MENU_MULTI_OUTPUT
+if [[ -n "${MENU_MULTI_OUTPUT:-}" && -f "$MENU_MULTI_OUTPUT" ]]; then
+  call_count_file="${MENU_CALL_COUNT:-/tmp/menu_call_count}"
+  if [[ -f "$call_count_file" ]]; then
+    count=$(cat "$call_count_file")
+  else
+    count=0
+  fi
+  # Line numbers are 1-based; call_count is 0-based
+  line=$((count + 1))
+  output=$(sed -n "${line}p" "$MENU_MULTI_OUTPUT" 2>/dev/null || true)
+  echo "$((count + 1))" > "$call_count_file"
+  if [[ -n "$output" ]]; then
+    echo "$output"
+    exit 0
+  fi
+fi
+
+# Fallback to single-output file
+if [[ -n "${MENU_MOCK_OUTPUT:-}" && -f "$MENU_MOCK_OUTPUT" ]]; then
+  cat "$MENU_MOCK_OUTPUT"
+fi
+exit 0

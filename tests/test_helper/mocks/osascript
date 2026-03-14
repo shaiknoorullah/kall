@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Mock for osascript
+# Logs invocation to MOCK_LOG, returns configurable output
+MOCK_NAME="osascript"
+echo "$MOCK_NAME $*" >> "${MOCK_LOG:-/dev/null}"
+if [[ -n "${MENU_MOCK_OUTPUT:-}" && -f "$MENU_MOCK_OUTPUT" ]]; then
+  cat "$MENU_MOCK_OUTPUT"
+fi
+exit 0

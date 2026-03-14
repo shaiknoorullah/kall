@@ -1,0 +1,5 @@
+shell=bash
+source-path=lib/
+source-path=backends/
+disable=SC2005
+enable=require-double-brackets
