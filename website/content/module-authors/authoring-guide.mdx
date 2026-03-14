@@ -1,0 +1,290 @@
+---
+title: Authoring Guide
+description: Step-by-step guide to creating, testing, and submitting a kall module.
+---
+
+This guide walks through the complete lifecycle of creating a kall module: scaffolding, writing the manifest, implementing the entry script, using lib functions, writing tests, and submitting a pull request.
+
+## Step 1: Scaffold the module
+
+Use the built-in scaffolding command to create a module skeleton:
+
+```bash
+kall create-module my-module
+```
+
+This creates three files:
+
+```
+modules/my-module/
+  module.yml         # Module manifest
+  my-module.sh       # Entry script
+tests/
+  test_my-module.bats  # Test file
+```
+
+The scaffold includes boilerplate for all three files so you can start writing logic immediately.
+
+## Step 2: Define the manifest
+
+Open `modules/my-module/module.yml` and fill in the metadata. The manifest is the contract between your module and the kall framework. Here is a complete example:
+
+```yaml
+name: my-module
+description: "Short description of what this module does"
+version: "1.0.0"
+author: "your-name"
+category: productivity
+
+platforms:
+  linux:
+    x11: true
+    wayland: true
+  macos: true
+
+requires:
+  lib: [menu, platform, notify]
+  adapter_tools:
+    x11: [xclip]
+    wayland: [wl-copy]
+    darwin: [pbcopy]
+
+keybinding:
+  mods: [mod, shift]
+  key: m
+
+config:
+  user_editable: [default_option]
+
+layout_hints:
+  columns: 1
+  icon_size: 24
+  show_preview: false
+```
+
+Every field except `name` is optional. See the [Module YAML Spec](/docs/module-authors/module-yml-spec) for a complete reference of every field.
+
+### Required fields
+
+Only `name` is strictly required. However, a well-defined module should include at minimum:
+
+- `name` -- unique identifier, must match the directory name
+- `description` -- shown in `kall list` output
+- `category` -- one of `system`, `productivity`, `developer`, `browser`, `notes`, `core`
+- `platforms` -- declares where the module works
+- `requires` -- declares runtime dependencies
+
+## Step 3: Write the entry script
+
+The entry script is a bash file that kall executes when the user runs `kall my-module`. It sources the kall library and uses lib functions to interact with the menu backend, clipboard, notifications, and other platform services.
+
+### Basic structure
+
+```bash
+#!/usr/bin/env bash
+# modules/my-module/my-module.sh
+
+set -euo pipefail
+
+# Source the kall core (loads all lib modules)
+# shellcheck source=../../lib/core.sh
+source "${KALL_LIB_DIR:-$(cd "$(dirname "$0")/../../lib" && pwd)}/core.sh"
+source "$KALL_LIB_DIR/menu.sh"
+source "$KALL_LIB_DIR/platform.sh"
+source "$KALL_LIB_DIR/notify.sh"
+
+# Build the menu items
+items="Option A\nOption B\nOption C"
+
+# Show the menu and capture the user's selection
+selected="$(echo -e "$items" | menu_dmenu "My Module")"
+
+# Exit if user cancelled (empty selection)
+[[ -z "$selected" ]] && exit 0
+
+# Handle the selection
+case "$selected" in
+  "Option A")
+    echo "result A" | clipboard_copy
+    notify "My Module" "Copied result A to clipboard"
+    ;;
+  "Option B")
+    open_url "https://example.com"
+    ;;
+  "Option C")
+    log_info "my-module: user selected option C"
+    ;;
+esac
+```
+
+### Key rules
+
+1. **Always source `core.sh` first.** It sets up environment detection, config parsing, and logging.
+2. **Never call platform tools directly.** Use `clipboard_copy` instead of `xclip`, `screenshot_area` instead of `grim`, etc. This is enforced by CI (invariant INV-MOD-03).
+3. **Handle empty selections.** When the user presses Escape or closes the menu, the menu function returns an empty string. Exit cleanly.
+4. **Use log functions for output.** Use `log_info`, `log_warn`, `log_error` instead of `echo >&2`. See the [Lib API](/docs/module-authors/lib-api) for all logging functions.
+
+## Step 4: Available lib functions
+
+kall provides a set of library functions organized by file. Source the relevant lib file and call its functions:
+
+### Menu functions (lib/menu.sh)
+
+| Function | Description |
+|---|---|
+| `menu_dmenu PROMPT` | Show a dmenu-style menu (pipe items via stdin) |
+| `menu_launch` | Launch the menu backend with full configuration |
+| `menu_calc` | Launch calculator mode |
+| `menu_keys` | Launch keybinding display mode |
+| `menu_supports FEATURE` | Check if the current backend supports a feature |
+
+### Platform functions (lib/platform.sh)
+
+| Function | Description |
+|---|---|
+| `clipboard_copy` | Copy stdin to clipboard (dispatches per session) |
+| `clipboard_paste` | Paste clipboard contents to stdout |
+| `screenshot_full PATH` | Take a full-screen screenshot |
+| `screenshot_area PATH` | Take an area-selection screenshot |
+| `screenshot_window PATH` | Take a screenshot of the active window |
+| `set_wallpaper PATH` | Set the desktop wallpaper |
+| `open_url URL` | Open a URL in the default browser |
+| `lock_screen` | Lock the screen (delegates to WM adapter) |
+
+### Notification functions (lib/notify.sh)
+
+| Function | Description |
+|---|---|
+| `notify TITLE [BODY]` | Send a standard 3-second notification |
+| `notify_critical TITLE [BODY]` | Send an urgent notification (no auto-dismiss) |
+| `notify_with_icon TITLE [BODY] [ICON]` | Send a notification with a custom icon |
+
+### Logging functions (lib/log.sh)
+
+| Function | Description |
+|---|---|
+| `log_trace MESSAGE` | Granular diagnostic (file:line format, debug.log only) |
+| `log_debug MESSAGE` | Diagnostic with file:line, debug.log only |
+| `log_info MESSAGE` | Normal operational message |
+| `log_warn MESSAGE` | Recoverable issue or fallback |
+| `log_error MESSAGE` | Failure that prevents an operation (always shown) |
+| `log_fatal MESSAGE` | Unrecoverable failure, exits with code 1 |
+
+### Core variables (lib/core.sh)
+
+| Variable | Description |
+|---|---|
+| `KALL_SESSION` | `x11`, `wayland`, or `darwin` |
+| `KALL_WM` | Detected window manager |
+| `KALL_OS` | `linux` or `darwin` |
+| `KALL_MENU_BACKEND` | Configured backend name |
+| `KALL_THEME` | Active palette name |
+
+For the full API reference with function signatures and examples, see [Lib API](/docs/module-authors/lib-api).
+
+## Step 5: Write tests
+
+Every module must have a test file. CI enforces this -- a module without `tests/test_<name>.bats` fails the build.
+
+Create `tests/test_my-module.bats`:
+
+```bash
+#!/usr/bin/env bats
+
+load test_helper/common
+
+setup() {
+  common_setup
+}
+
+teardown() {
+  common_teardown
+}
+
+@test "my-module loads without errors" {
+  echo "Option A" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+}
+
+@test "my-module copies result to clipboard on x11" {
+  export XDG_SESSION_TYPE=x11
+  echo "Option A" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+  assert_mock_called "xclip"
+}
+
+@test "my-module copies result to clipboard on wayland" {
+  export XDG_SESSION_TYPE=wayland
+  echo "Option A" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+  assert_mock_called "wl-copy"
+}
+
+@test "my-module handles empty selection" {
+  echo "" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+}
+
+@test "my-module opens URL for Option B" {
+  echo "Option B" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+  assert_mock_called "xdg-open"
+}
+```
+
+Run tests:
+
+```bash
+# Run all tests
+./tests/run_tests.sh
+
+# Run only your module's tests
+bats tests/test_my-module.bats
+
+# Run under a specific session type
+XDG_SESSION_TYPE=wayland bats tests/test_my-module.bats
+```
+
+For detailed information on the test infrastructure, mock system, and assertion helpers, see the [Testing Guide](/docs/module-authors/testing-guide).
+
+## Step 6: Submit a PR
+
+Before submitting, run the full validation suite locally:
+
+```bash
+# Lint
+shellcheck modules/my-module/my-module.sh
+shfmt -d -i 2 -ci modules/my-module/my-module.sh
+
+# Test
+./tests/run_tests.sh
+
+# Verify no direct platform tool calls
+grep -rn 'xclip\|wl-copy\|grim\|maim\|pbcopy' modules/my-module/ --include='*.sh' | grep -v '#'
+```
+
+### Commit convention
+
+Follow the project's conventional commit format:
+
+```
+feat(module/my-module): add my-module with clipboard integration
+```
+
+The format is `type(area/name): description`. See the [CI/CD](/docs/contributors/ci-cd) page for the full list of types and areas.
+
+### PR checklist
+
+Your PR should include:
+
+- `modules/my-module/module.yml` -- valid manifest with all relevant fields
+- `modules/my-module/my-module.sh` -- entry script using only lib functions
+- `tests/test_my-module.bats` -- test file covering success, failure, and platform branches
+- No direct calls to platform tools (`xclip`, `wl-copy`, `grim`, `maim`, `hyprctl`, `i3-msg`, `swaymsg`, `pbcopy`, `pbpaste`, `screencapture`, `xdotool`, `xrandr`)
+- shellcheck and shfmt clean
+- Tests pass on both X11 and Wayland session types

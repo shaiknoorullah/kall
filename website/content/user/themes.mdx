@@ -1,0 +1,255 @@
+---
+title: Themes
+description: Color palettes, dynamic wallbash theming, and custom palette creation.
+---
+
+kall ships six curated color palettes and supports dynamic color extraction from your wallpaper. Palettes define eight canonical color slots that map to semantic roles in every menu backend. This page covers the built-in palettes, theme management commands, wallbash dynamic theming, and how to create your own palette.
+
+## Built-in palettes
+
+Six palettes are included in `themes/palettes/`:
+
+### Catppuccin Mocha
+
+A warm, pastel dark theme from the Catppuccin project.
+
+| Color slot | Hex | Role |
+|---|---|---|
+| `main_bg` | `#1E1E2E` | Primary background |
+| `main_fg` | `#CDD6F4` | Primary foreground |
+| `main_br` | `#CBA6F7` | Border / accent (mauve) |
+| `main_ex` | `#F5E0DC` | Extra accent (rosewater) |
+| `select_bg` | `#B4BEFE` | Selected item background (lavender) |
+| `select_fg` | `#1E1E2E` | Selected item foreground |
+| `urgent_bg` | `#F38BA8` | Urgent background (red) |
+| `urgent_fg` | `#1E1E2E` | Urgent foreground |
+
+### Dracula
+
+The classic Dracula dark palette.
+
+| Color slot | Hex | Role |
+|---|---|---|
+| `main_bg` | `#282A36` | Primary background |
+| `main_fg` | `#F8F8F2` | Primary foreground |
+| `main_br` | `#BD93F9` | Border / accent (purple) |
+| `main_ex` | `#FF79C6` | Extra accent (pink) |
+| `select_bg` | `#44475A` | Selected item background |
+| `select_fg` | `#F8F8F2` | Selected item foreground |
+| `urgent_bg` | `#FF5555` | Urgent background (red) |
+| `urgent_fg` | `#F8F8F2` | Urgent foreground |
+
+### Nord
+
+Arctic, north-bluish palette by Arctic Ice Studio.
+
+| Color slot | Hex | Role |
+|---|---|---|
+| `main_bg` | `#2E3440` | Primary background (Polar Night) |
+| `main_fg` | `#ECEFF4` | Primary foreground (Snow Storm) |
+| `main_br` | `#88C0D0` | Border / accent (Frost) |
+| `main_ex` | `#81A1C1` | Extra accent (Frost) |
+| `select_bg` | `#4C566A` | Selected item background |
+| `select_fg` | `#ECEFF4` | Selected item foreground |
+| `urgent_bg` | `#BF616A` | Urgent background (Aurora red) |
+| `urgent_fg` | `#ECEFF4` | Urgent foreground |
+
+### Gruvbox
+
+Retro groove palette by morhetz.
+
+| Color slot | Hex | Role |
+|---|---|---|
+| `main_bg` | `#282828` | Primary background (dark0) |
+| `main_fg` | `#EBDBB2` | Primary foreground (light1) |
+| `main_br` | `#D79921` | Border / accent (yellow) |
+| `main_ex` | `#458588` | Extra accent (blue) |
+| `select_bg` | `#504945` | Selected item background (dark2) |
+| `select_fg` | `#EBDBB2` | Selected item foreground |
+| `urgent_bg` | `#CC241D` | Urgent background (red) |
+| `urgent_fg` | `#EBDBB2` | Urgent foreground |
+
+### Tokyo Night
+
+Dark theme inspired by Tokyo city lights, by enkia.
+
+| Color slot | Hex | Role |
+|---|---|---|
+| `main_bg` | `#1A1B26` | Primary background |
+| `main_fg` | `#C0CAF5` | Primary foreground |
+| `main_br` | `#7AA2F7` | Border / accent (blue) |
+| `main_ex` | `#BB9AF7` | Extra accent (purple) |
+| `select_bg` | `#33467C` | Selected item background |
+| `select_fg` | `#C0CAF5` | Selected item foreground |
+| `urgent_bg` | `#F7768E` | Urgent background (red) |
+| `urgent_fg` | `#C0CAF5` | Urgent foreground |
+
+### Rose Pine
+
+Natural, muted palette from the Rose Pine project.
+
+| Color slot | Hex | Role |
+|---|---|---|
+| `main_bg` | `#191724` | Primary background (base) |
+| `main_fg` | `#E0DEF4` | Primary foreground (text) |
+| `main_br` | `#C4A7E7` | Border / accent (iris) |
+| `main_ex` | `#EBBCBA` | Extra accent (rose) |
+| `select_bg` | `#26233A` | Selected item background (overlay) |
+| `select_fg` | `#E0DEF4` | Selected item foreground |
+| `urgent_bg` | `#EB6F92` | Urgent background (love) |
+| `urgent_fg` | `#E0DEF4` | Urgent foreground |
+
+## Theme commands
+
+### Set active theme
+
+Switch to a different palette:
+
+```bash
+kall theme set dracula
+```
+
+This updates the `theme` key in `kall.yml` and regenerates backend-specific theme files.
+
+### List available palettes
+
+Show all palettes in `themes/palettes/`:
+
+```bash
+kall theme list
+```
+
+Output:
+
+```
+catppuccin-mocha
+dracula
+gruvbox
+nord
+rose-pine
+tokyo-night
+```
+
+## Dynamic wallbash
+
+Wallbash is an opt-in dynamic theming mode that extracts dominant colors from your current wallpaper instead of using a curated palette. It requires ImageMagick.
+
+### Enabling wallbash
+
+```bash
+kall theme wallbash on
+```
+
+This sets `dynamic_theme: true` in `kall.yml`. The next time any module runs, the theme engine calls `generate_wallbash()` instead of `load_theme()`.
+
+### How it works
+
+The `generate_wallbash()` function in `lib/theme.sh` performs these steps:
+
+1. **Resize** the wallpaper image to 100x100 pixels (forced aspect ratio) for fast processing
+2. **Quantize** to 8 dominant colors using ImageMagick color reduction: `convert "$wallpaper" -resize 100x100! -colors 8 -unique-colors txt:-`
+3. **Extract** hex color codes from the output
+4. **Sort by luminance** using BT.601 coefficients (`R * 299 + G * 587 + B * 114`)
+5. **Map** sorted colors to `KALL_COLOR_*` variables (darkest to backgrounds, lightest to foregrounds)
+
+The luminance-based mapping:
+
+| Sort position | Variable | Role |
+|---|---|---|
+| 1 (darkest) | `KALL_COLOR_MAIN_BG` | Primary background |
+| 2 | `KALL_COLOR_SELECT_BG` | Selected item background |
+| 4 | `KALL_COLOR_URGENT_BG` | Urgent background |
+| 5 | `KALL_COLOR_MAIN_EX` | Extra accent |
+| 6 | `KALL_COLOR_MAIN_BR` | Border accent |
+| 7 | `KALL_COLOR_SELECT_FG` | Selected item foreground |
+| 8 (lightest) | `KALL_COLOR_MAIN_FG`, `KALL_COLOR_URGENT_FG` | Primary and urgent foreground |
+
+### Fallback behavior
+
+Wallbash falls back to the static palette (the `theme` value in `kall.yml`) in three cases:
+
+- The wallpaper file does not exist
+- ImageMagick (`convert`) is not installed
+- Color extraction produces fewer than 8 colors
+
+The fallback is automatic and silent except for a `WARN`-level log entry.
+
+### Disabling wallbash
+
+```bash
+kall theme wallbash off
+```
+
+This sets `dynamic_theme: false` and reverts to the static palette.
+
+## Creating a custom palette
+
+### Step 1: Copy an existing palette
+
+Start from a palette close to what you want:
+
+```bash
+cp themes/palettes/catppuccin-mocha.yml themes/palettes/my-theme.yml
+```
+
+### Step 2: Edit the colors
+
+Open the file and replace the hex values. All eight color keys under `colors` are required:
+
+```yaml
+name: "My Custom Theme"
+author: "your-name"
+
+colors:
+  main_bg: "#1a1b26"
+  main_fg: "#c0caf5"
+  main_br: "#7aa2f7"
+  main_ex: "#bb9af7"
+  select_bg: "#283457"
+  select_fg: "#c0caf5"
+  urgent_bg: "#f7768e"
+  urgent_fg: "#1a1b26"
+```
+
+The schema (`schemas/palette.schema.yml`) enforces that `name`, `main_bg`, `main_fg`, `main_br`, `main_ex`, `select_bg`, and `select_fg` are all required. Omitting any key fails validation.
+
+### Step 3: Validate
+
+Run the doctor command to check schema compliance:
+
+```bash
+kall doctor
+```
+
+### Step 4: Generate backend themes
+
+Regenerate theme files for all backends:
+
+```bash
+./backends/generate-themes.sh
+```
+
+This reads your new palette and creates theme files in every backend's `themes/` directory (`.rasi` for rofi, `.css` for wofi, `.sh` for fzf and dmenu, `.ini` for tofi and fuzzel).
+
+### Step 5: Activate
+
+```bash
+kall theme set my-theme
+```
+
+## Color variable reference
+
+After theme loading (static or wallbash), these environment variables are available to all lib functions and backend adapters:
+
+| Variable | Palette key | Semantic role |
+|---|---|---|
+| `KALL_COLOR_MAIN_BG` | `colors.main_bg` | Primary background |
+| `KALL_COLOR_MAIN_FG` | `colors.main_fg` | Primary foreground / text |
+| `KALL_COLOR_MAIN_BR` | `colors.main_br` | Border and accent color |
+| `KALL_COLOR_MAIN_EX` | `colors.main_ex` | Extra accent (highlights, badges) |
+| `KALL_COLOR_SELECT_BG` | `colors.select_bg` | Selected item background |
+| `KALL_COLOR_SELECT_FG` | `colors.select_fg` | Selected item foreground |
+| `KALL_COLOR_URGENT_BG` | `colors.urgent_bg` | Urgent / error background |
+| `KALL_COLOR_URGENT_FG` | `colors.urgent_fg` | Urgent / error foreground |
+
+Modules never read these variables directly. They declare layout hints and the backend adapter handles color application.

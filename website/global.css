@@ -1,3 +1,19 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/catppuccin.css';
 @import 'fumadocs-ui/css/preset.css';
+
+@keyframes hero-glow-shift {
+  0%, 100% {
+    filter: drop-shadow(0 0 30px rgba(203, 166, 247, 0.3));
+  }
+  33% {
+    filter: drop-shadow(0 0 40px rgba(137, 180, 250, 0.3));
+  }
+  66% {
+    filter: drop-shadow(0 0 35px rgba(245, 194, 231, 0.25));
+  }
+}
+
+.hero-glow {
+  animation: hero-glow-shift 6s ease-in-out infinite;
+}

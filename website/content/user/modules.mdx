@@ -1,0 +1,155 @@
+---
+title: Modules
+description: Catalog of all 26 kall modules with platform support and categories.
+---
+
+## Module catalog
+
+kall ships 26 modules at launch, organized by category. Platform support indicates where each module works:
+
+- **X11** -- Linux with X11 display server
+- **Wayland** -- Linux with Wayland display server
+- **macOS** -- macOS (with skhd/yabai or standalone)
+
+### Core -- Launchers and navigation
+
+| Module | Description | X11 | Wayland | macOS |
+|---|---|:---:|:---:|:---:|
+| launcher | App launcher (drun, run, window, filebrowser) | Y | Y | Y |
+| style-selector | Visual launcher style switcher (12 styles) | Y | Y | Y |
+| keybindings | WM keybinding cheat sheet viewer | Y | Y | ~ |
+
+### System -- Hardware, display, power
+
+| Module | Description | X11 | Wayland | macOS |
+|---|---|:---:|:---:|:---:|
+| power | Shutdown, reboot, lock, suspend, logout | Y | Y | Y |
+| screenshot | Full, area, window capture + clipboard + OCR | Y | Y | Y |
+| clipboard | History, favorites, image preview, OCR scan | Y | Y | Y |
+| display | Multi-monitor layout manager | Y | Y | -- |
+| wallpaper | Category browser + setter + dynamic theme trigger | Y | Y | Y |
+| bluetooth | Scan, pair, connect, trust devices | Y | Y | -- |
+| systemd | Service manager (start, stop, enable, disable) | Y | Y | -- |
+
+### Productivity -- Search, calculate, pick
+
+| Module | Description | X11 | Wayland | macOS |
+|---|---|:---:|:---:|:---:|
+| websearch | Search with autocomplete + bang syntax | Y | Y | Y |
+| calculator | Calculator mode | Y | Y | Y |
+| emoji | Emoji picker with recents + grid/list | Y | Y | Y |
+| glyph | Nerd Font glyph picker | Y | Y | Y |
+| media | Media player controls (play, pause, next, prev) | Y | Y | Y |
+
+### Developer -- Git, tmux, projects
+
+| Module | Description | X11 | Wayland | macOS |
+|---|---|:---:|:---:|:---:|
+| git-profiles | Switch git user.name/email per project | Y | Y | Y |
+| tmux | Tmux session manager | Y | Y | Y |
+| projects | Project directory launcher (editor + terminal) | Y | Y | Y |
+
+### Browser -- Zen, bookmarks, search
+
+| Module | Description | X11 | Wayland | macOS |
+|---|---|:---:|:---:|:---:|
+| bookmarks | Browser bookmarks viewer (Firefox, Chrome, Zen) | Y | Y | Y |
+| zen-tabs | Fuzzy tab search with favicon preview | Y | Y | Y |
+| zen-workspaces | Domain-based tab grouping + dedup | Y | Y | Y |
+
+### Notes -- Obsidian
+
+| Module | Description | X11 | Wayland | macOS |
+|---|---|:---:|:---:|:---:|
+| obsidian | Quick actions (new note, daily, open vault) | Y | Y | Y |
+| obsidian-search | Full-text note search with preview | Y | Y | Y |
+
+### Additional modules
+
+| Module | Description | X11 | Wayland | macOS |
+|---|---|:---:|:---:|:---:|
+| weather | Weather display (wttr.in API) | Y | Y | Y |
+| notifications | Notification history viewer | Y | Y | -- |
+| theme-selector | Theme/palette browser with preview | Y | Y | Y |
+
+**Legend:** Y = supported, ~ = partial support, -- = not available
+
+## Managing modules
+
+```bash
+# Install modules
+kall add emoji calculator tmux
+
+# Remove a module
+kall remove zen-workspaces
+
+# List installed modules
+kall list
+
+# List all available modules for your platform
+kall list --available
+```
+
+When you run `kall add`, kall reads the module's `module.yml`, checks platform compatibility, installs any missing dependencies via your system's package manager, adds the module to your `kall.yml`, and copies any user-editable config files.
+
+## Module groups
+
+Groups aggregate multiple modules into a single navigable menu. kall ships five groups:
+
+| Group | Members |
+|---|---|
+| system | power, display, bluetooth, systemd |
+| productivity | websearch, calculator, emoji, glyph, media |
+| developer | git-profiles, tmux, projects |
+| browser | bookmarks, zen-tabs, zen-workspaces |
+| notes | obsidian, obsidian-search |
+
+```bash
+# Open a group
+kall system
+
+# Jump to a specific module within a group
+kall system power
+```
+
+You can define custom groups in your `kall.yml`. See [Configuration](/docs/user/configuration) for details.
+
+## Module structure
+
+Every module lives in its own directory under `modules/` and contains:
+
+```
+modules/<name>/
+  module.yml        # Module manifest (required)
+  <name>.sh         # Entry script (required)
+  assets/           # Icons, preview scripts (optional)
+```
+
+The `module.yml` manifest declares metadata, platform compatibility, dependencies, default keybinding, and layout hints. See the [Module YAML Spec](/docs/module-authors/module-yml-spec) for a full field reference.
+
+## Dependencies
+
+Modules declare two kinds of dependencies in `module.yml`:
+
+### Lib dependencies
+
+The `requires.lib` array lists kall library modules needed at runtime:
+
+```yaml
+requires:
+  lib: [platform, menu, notify]
+```
+
+### Adapter tool dependencies
+
+The `requires.adapter_tools` object maps session types to required system tools:
+
+```yaml
+requires:
+  adapter_tools:
+    x11: [xclip, maim]
+    wayland: [wl-copy, grim, slurp]
+    darwin: [pbcopy]
+```
+
+The `kall doctor` command checks that all tools required by installed modules are present on the system.

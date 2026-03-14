@@ -1,26 +1,26 @@
-import Link from 'next/link';
+import { Hero } from '@/components/landing/hero';
+import { Demo } from '@/components/landing/demo';
+import { Features } from '@/components/landing/features';
+import { Modules } from '@/components/landing/modules';
+import { Themes } from '@/components/landing/themes';
+import { SocialProof } from '@/components/landing/social-proof';
+import { GettingStarted } from '@/components/landing/getting-started';
+import { Footer } from '@/components/landing/footer';
 
 export default function HomePage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center text-center">
-      <h1 className="mb-4 text-4xl font-bold">kall</h1>
-      <p className="mb-8 text-fd-muted-foreground">
-        Documentation site coming soon.
-      </p>
-      <div className="flex gap-4">
-        <Link
-          href="/docs"
-          className="rounded-lg bg-fd-primary px-6 py-3 text-sm font-medium text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
-        >
-          Read the Docs
-        </Link>
-        <Link
-          href="/showcase"
-          className="rounded-lg border border-fd-border px-6 py-3 text-sm font-medium transition-colors hover:bg-fd-accent"
-        >
-          Showcase
-        </Link>
-      </div>
+    <main className="min-h-screen bg-[#1E1E2E] text-[#CDD6F4]">
+      <Hero />
+      <Demo />
+      <Features />
+      <div className="mx-auto max-w-5xl border-t border-[#313244]" />
+      <Modules />
+      <div className="mx-auto max-w-5xl border-t border-[#313244]" />
+      <Themes />
+      <SocialProof />
+      <div className="mx-auto max-w-5xl border-t border-[#313244]" />
+      <GettingStarted />
+      <Footer />
     </main>
   );
 }
