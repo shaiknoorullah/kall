@@ -1,24 +1,47 @@
+"use client";
+import { useEffect, useRef } from "react";
+import { gsap } from "@/lib/gsap";
+
 const features = [
-  { icon: '\u29C9', title: 'Modular', description: 'Install only what you need. Skip the rest.' },
-  { icon: '\u21C4', title: 'Any Backend', description: 'Swap rofi for wofi for fzf. Nothing breaks.' },
-  { icon: '\u2316', title: 'Cross-Platform', description: 'X11, Wayland, and macOS. One config.' },
-  { icon: '\u25D0', title: 'Dynamic Themes', description: 'Colors extracted from your wallpaper. Automatically.' },
-  { icon: '\u0023', title: 'Pure Bash', description: 'Zero Python. Zero runtime deps. Just bash.' },
-  { icon: '\u002B', title: 'Extensible', description: 'Write a module in 20 lines. Share it with everyone.' },
+  { icon: "🧩", title: "Modular", desc: "Install only what you need. Skip the rest. 26 modules, pick 5 or all 26.", accent: "#CBA6F7" },
+  { icon: "🔄", title: "Any Backend", desc: "Rofi today, fzf tomorrow, wofi next week. Your config doesn't care.", accent: "#89B4FA" },
+  { icon: "🌍", title: "Cross-Platform", desc: "X11, Wayland, and macOS. One config. Zero \"works on my machine.\"", accent: "#A6E3A1" },
+  { icon: "🎨", title: "Dynamic Themes", desc: "Colors extracted from your wallpaper. Automatically. Or pick from 6 curated palettes.", accent: "#F9E2AF" },
+  { icon: "⚡", title: "Pure Bash", desc: "No Python. No Node. No Ruby. No runtime deps. Bash and chill.", accent: "#FAB387" },
+  { icon: "🔌", title: "Extensible", desc: "Write a module in 20 lines. Share it. Anyone can contribute.", accent: "#F5C2E7" },
 ];
 
 export function Features() {
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!gridRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.from(".feature-card", {
+        y: 60, opacity: 0, stagger: 0.1, duration: 0.7, ease: "power2.out",
+        scrollTrigger: { trigger: gridRef.current, start: "top 80%" },
+      });
+    }, gridRef);
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="px-6 py-24">
-      <div className="mx-auto max-w-5xl">
-        <h2 className="mb-4 text-center text-sm font-semibold uppercase tracking-widest text-[#CBA6F7]">Why kall</h2>
-        <p className="mx-auto mb-16 max-w-lg text-center text-lg text-[#BAC2DE]">Everything you cobbled together from 10 repos, but it actually works together.</p>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <div key={feature.title} className="group rounded-xl border border-[#313244] bg-[#181825]/60 p-6 transition-all hover:border-[#45475A] hover:bg-[#181825]">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-[#313244] text-xl text-[#CBA6F7] transition-colors group-hover:bg-[#CBA6F7]/15">{feature.icon}</div>
-              <h3 className="mb-2 text-lg font-semibold text-[#CDD6F4]">{feature.title}</h3>
-              <p className="text-sm leading-relaxed text-[#A6ADC8]">{feature.description}</p>
+    <section className="relative px-6 py-32">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-16 text-center">
+          <h2 className="mb-4 text-4xl font-bold text-[#CDD6F4] md:text-5xl">
+            Built different. <span className="text-[#CBA6F7]">On purpose.</span>
+          </h2>
+          <p className="text-lg text-[#A6ADC8]">Every decision was &quot;how do we not end up like the other 47 rofi script repos&quot;</p>
+        </div>
+
+        <div ref={gridRef} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {features.map((f, i) => (
+            <div key={i} className="feature-card group relative overflow-hidden rounded-2xl border border-[#313244]/50 bg-[#181825]/60 p-6 transition-all duration-500 hover:border-[color:var(--accent)]/30 hover:shadow-[0_0_40px_rgba(203,166,247,0.06)]" style={{"--accent": f.accent} as React.CSSProperties}>
+              <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-0 blur-[60px] transition-opacity duration-500 group-hover:opacity-100" style={{backgroundColor: f.accent + "15"}} />
+              <span className="mb-4 block text-3xl">{f.icon}</span>
+              <h3 className="mb-2 text-lg font-semibold text-[#CDD6F4]">{f.title}</h3>
+              <p className="text-sm leading-relaxed text-[#A6ADC8]">{f.desc}</p>
             </div>
           ))}
         </div>

@@ -1,46 +1,45 @@
-type Palette = { name: string; colors: string[] };
+"use client";
+import { useEffect, useRef } from "react";
+import { gsap } from "@/lib/gsap";
 
-const palettes: Palette[] = [
-  { name: 'Catppuccin Mocha', colors: ['#1E1E2E', '#CBA6F7', '#89B4FA', '#A6E3A1', '#F38BA8', '#F9E2AF', '#CDD6F4'] },
-  { name: 'Dracula', colors: ['#282A36', '#BD93F9', '#FF79C6', '#50FA7B', '#FF5555', '#F1FA8C', '#F8F8F2'] },
-  { name: 'Nord', colors: ['#2E3440', '#88C0D0', '#81A1C1', '#A3BE8C', '#BF616A', '#EBCB8B', '#ECEFF4'] },
-  { name: 'Gruvbox', colors: ['#282828', '#D79921', '#458588', '#98971A', '#CC241D', '#D65D0E', '#EBDBB2'] },
-  { name: 'Tokyo Night', colors: ['#1A1B26', '#7AA2F7', '#BB9AF7', '#9ECE6A', '#F7768E', '#E0AF68', '#C0CAF5'] },
-  { name: 'Rose Pine', colors: ['#191724', '#C4A7E7', '#EBBCBA', '#31748F', '#EB6F92', '#F6C177', '#E0DEF4'] },
+const palettes = [
+  { name: "Catppuccin Mocha", colors: ["#1E1E2E", "#CDD6F4", "#CBA6F7", "#89B4FA", "#A6E3A1"] },
+  { name: "Dracula", colors: ["#282A36", "#F8F8F2", "#BD93F9", "#FF79C6", "#50FA7B"] },
+  { name: "Nord", colors: ["#2E3440", "#ECEFF4", "#88C0D0", "#81A1C1", "#BF616A"] },
+  { name: "Gruvbox", colors: ["#282828", "#EBDBB2", "#D79921", "#458588", "#CC241D"] },
+  { name: "Tokyo Night", colors: ["#1A1B26", "#C0CAF5", "#7AA2F7", "#BB9AF7", "#F7768E"] },
+  { name: "Rose Pine", colors: ["#191724", "#E0DEF4", "#C4A7E7", "#EBBCBA", "#EB6F92"] },
 ];
 
 export function Themes() {
-  return (
-    <section className="px-6 py-24">
-      <div className="mx-auto max-w-4xl">
-        <h2 className="mb-4 text-center text-sm font-semibold uppercase tracking-widest text-[#CBA6F7]">
-          6 palettes built in
-        </h2>
-        <p className="mx-auto mb-6 max-w-lg text-center text-lg text-[#BAC2DE]">
-          Pick a palette. Or let your wallpaper decide.
-        </p>
-        <p className="mx-auto mb-14 max-w-md text-center text-sm text-[#6C7086]">
-          Dynamic wallbash theming extracts colors from your wallpaper and
-          applies them across every module, every backend, automatically.
-        </p>
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!sectionRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.from(".palette-card", {
+        y: 40, opacity: 0, stagger: 0.08, duration: 0.6,
+        scrollTrigger: { trigger: sectionRef.current, start: "top 80%" },
+      });
+    }, sectionRef);
+    return () => ctx.revert();
+  }, []);
 
+  return (
+    <section ref={sectionRef} className="relative px-6 py-32">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-12 text-center">
+          <h2 className="mb-4 text-4xl font-bold text-[#CDD6F4] md:text-5xl">Six palettes. <span className="text-[#F9E2AF]">Or your wallpaper.</span></h2>
+          <p className="text-lg text-[#A6ADC8]">Static palettes ship out of the box. Enable wallbash and your wallpaper becomes your theme.</p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {palettes.map((palette) => (
-            <div
-              key={palette.name}
-              className="rounded-xl border border-[#313244] bg-[#181825]/60 p-5 transition-all hover:border-[#45475A] hover:bg-[#181825]"
-            >
-              <p className="mb-3 text-sm font-medium text-[#CDD6F4]">{palette.name}</p>
-              <div className="flex gap-2">
-                {palette.colors.map((color, i) => (
-                  <div
-                    key={i}
-                    className="h-5 w-5 rounded-full border border-white/10"
-                    style={{ backgroundColor: color }}
-                    title={color}
-                  />
+          {palettes.map((p) => (
+            <div key={p.name} className="palette-card group rounded-xl border border-[#313244]/40 bg-[#181825]/40 p-4 transition-all duration-300 hover:border-[#585B70] hover:bg-[#181825]/80">
+              <div className="mb-3 flex gap-2">
+                {p.colors.map((c, j) => (
+                  <div key={j} className="h-8 w-8 rounded-lg transition-transform duration-300 group-hover:scale-110" style={{ backgroundColor: c }} />
                 ))}
               </div>
+              <div className="text-sm font-medium text-[#CDD6F4]">{p.name}</div>
             </div>
           ))}
         </div>
