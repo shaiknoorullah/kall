@@ -9,9 +9,11 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "fumadocs-core": "^16.6.17",
     "fumadocs-mdx": "^14.2.10",
     "fumadocs-ui": "^16.6.17",
+    "gsap": "^3.14.2",
     "next": "^16.1.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
