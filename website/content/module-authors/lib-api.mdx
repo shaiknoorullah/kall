@@ -1,0 +1,412 @@
+---
+title: Lib API Reference
+description: Complete function and variable reference for all kall lib files.
+---
+
+This page documents every public function and exported variable in the kall library. All functions are defined in files under `lib/` and are available to modules after sourcing the appropriate lib file.
+
+## core.sh
+
+Core environment detection, XDG path setup, and configuration parsing. This file is sourced first by every other lib file and by the dispatcher. It is safe to source multiple times (guarded by `_KALL_CORE_LOADED`).
+
+### Exported variables
+
+| Variable | Type | Description |
+|---|---|---|
+| `KALL_OS` | string | Detected OS: `linux` or `darwin` |
+| `KALL_SESSION` | string | Display session: `x11`, `wayland`, or `darwin` |
+| `KALL_WM` | string | Window manager: `hyprland`, `i3`, `sway`, `bspwm`, `awesome`, `dwm`, `macos`, or `generic` |
+| `KALL_MENU_BACKEND` | string | Configured backend from `kall.yml` (default: `rofi`) |
+| `KALL_THEME` | string | Active palette name (default: `catppuccin-mocha`) |
+| `KALL_STYLE` | string | Launcher style (default: `style_1`) |
+| `KALL_DYNAMIC_THEME` | string | `true` or `false` -- whether wallbash is enabled |
+| `KALL_CONFIG_DIR` | string | Path to `$XDG_CONFIG_HOME/kall` |
+| `KALL_DATA_DIR` | string | Path to `$XDG_DATA_HOME/kall` |
+| `KALL_STATE_DIR` | string | Path to `$XDG_STATE_HOME/kall` |
+| `KALL_CONFIG_FILE` | string | Full path to `kall.yml` |
+| `KALL_LIB_DIR` | string | Absolute path to the `lib/` directory |
+| `KALL_LOG_DIR` | string | Path to `$KALL_STATE_DIR/logs` |
+| `KALL_LOG_LEVEL` | string | Active log level (default: `INFO`) |
+| `KALL_APPEARANCE_MANAGED` | string | `true` or `false` -- master appearance switch |
+| `KALL_FONT` | string | Font family and size (default: `JetBrainsMono Nerd Font 12`) |
+| `KALL_ICON_THEME` | string | Icon theme (default: `Papirus-Dark`) |
+| `KALL_BORDER_RADIUS` | string | Border radius in pixels (default: `12`) |
+| `KALL_BORDER_WIDTH` | string | Border width in pixels (default: `2`) |
+| `KALL_OPACITY` | string | Window opacity (default: `0.9`) |
+
+### Functions
+
+#### `_kall_read_config KEY [DEFAULT]`
+
+Reads a value from `kall.yml` using `yq`. Returns `DEFAULT` if:
+
+- `yq` is not installed
+- `kall.yml` does not exist
+- The key is missing or `null`
+
+```bash
+local backend
+backend="$(_kall_read_config menu_backend "rofi")"
+
+local font
+font="$(_kall_read_config appearance.font "JetBrainsMono Nerd Font 12")"
+```
+
+This function satisfies INV-CFG-02: kall starts with empty or missing config and all defaults apply.
+
+#### `_kall_detect_os`
+
+Returns `linux` or `darwin` based on `uname` output. Called once at source time to set `KALL_OS`.
+
+#### `_kall_detect_session`
+
+Returns `x11`, `wayland`, or `darwin` based on `KALL_OS` and `XDG_SESSION_TYPE`. Darwin always returns `darwin`. Linux defaults to `x11` when `XDG_SESSION_TYPE` is unset.
+
+#### `_kall_detect_wm`
+
+Returns the window manager name based on `KALL_OS` and `XDG_CURRENT_DESKTOP`. Darwin always returns `macos`. Unrecognized desktops return `generic`.
+
+Supported WM detection values: `hyprland`, `i3`, `sway`, `bspwm`, `awesome`, `dwm`.
+
+---
+
+## log.sh
+
+Structured, leveled logging with file output and rotation. Sourced automatically by `core.sh`.
+
+### Log levels
+
+| Level | Numeric | Format | Destination |
+|---|---|---|---|
+| `TRACE` | 0 | `[TRACE] timestamp file:line  message` | debug.log, stderr |
+| `DEBUG` | 1 | `[DEBUG] timestamp file:line  message` | debug.log, stderr |
+| `INFO` | 2 | `[INFO] timestamp  message` | kall.log, debug.log, stderr |
+| `WARN` | 3 | `[WARN] timestamp  message` | kall.log, debug.log, stderr |
+| `ERROR` | 4 | `[ERROR] timestamp  message` | kall.log, debug.log, stderr (always) |
+| `FATAL` | 5 | `[FATAL] timestamp  message` | kall.log, debug.log, stderr (always), then exits |
+
+TRACE and DEBUG include millisecond timestamps and `file:line` caller location. INFO and above use second-precision timestamps without caller location.
+
+### Functions
+
+#### `log_trace MESSAGE`
+
+Log a TRACE-level message. Only written to `debug.log` when the log level is TRACE. Includes source file and line number.
+
+```bash
+log_trace "entering clipboard_copy, session=$KALL_SESSION"
+```
+
+#### `log_debug MESSAGE`
+
+Log a DEBUG-level message. Written to `debug.log` when the log level is DEBUG or TRACE. Includes source file and line number.
+
+```bash
+log_debug "menu_dmenu called with prompt='Power'"
+```
+
+#### `log_info MESSAGE`
+
+Log an INFO-level message. Written to `kall.log` and shown on stderr when the log level is INFO or lower.
+
+```bash
+log_info "clipboard module loaded successfully"
+```
+
+#### `log_warn MESSAGE`
+
+Log a WARN-level message. Indicates a recoverable issue or fallback.
+
+```bash
+log_warn "palette 'missing-theme' not found, falling back to catppuccin-mocha"
+```
+
+#### `log_error MESSAGE`
+
+Log an ERROR-level message. Always shown on stderr regardless of configured log level.
+
+```bash
+log_error "failed to read clipboard contents"
+```
+
+#### `log_fatal MESSAGE`
+
+Log a FATAL-level message and exit with code 1. Always shown on stderr.
+
+```bash
+log_fatal "backend adapter not found: $adapter_path"
+```
+
+**Warning:** `log_fatal` calls `exit 1`. It should only be used for unrecoverable errors that prevent the module from functioning.
+
+---
+
+## menu.sh
+
+Menu abstraction with backend adapter loading and interface validation. Sources the configured backend adapter from `backends/<backend>/adapter.sh` and validates that it implements the required interface.
+
+### Backend interface
+
+Every backend adapter must implement these five functions:
+
+#### `menu_dmenu PROMPT`
+
+Show a dmenu-style menu. Reads items from stdin (one per line), displays a menu with the given prompt, and prints the selected item to stdout. Returns empty string if the user cancels.
+
+```bash
+selected="$(echo -e "Option A\nOption B\nOption C" | menu_dmenu "Pick one")"
+```
+
+#### `menu_launch`
+
+Launch the menu backend with full configuration, including theme, layout hints, and style settings.
+
+#### `menu_calc`
+
+Launch calculator mode. The menu displays an input field and evaluates mathematical expressions.
+
+#### `menu_keys`
+
+Launch keybinding display mode. Shows a formatted list of keybindings.
+
+#### `menu_supports FEATURE`
+
+Check if the current backend supports a named feature. Returns exit code 0 if supported, 1 otherwise.
+
+```bash
+if menu_supports "icons"; then
+  items="  Lock\n  Shutdown"
+fi
+
+if menu_supports "preview"; then
+  echo "$items" | menu_dmenu "Files" --preview "bat --color=always {}"
+fi
+```
+
+Common feature names: `icons`, `preview`, `columns`, `images`.
+
+---
+
+## platform.sh
+
+Cross-platform abstractions for clipboard, screenshots, wallpaper, URLs, and screen locking. Loads WM and notify adapters based on `KALL_SESSION` and `KALL_OS`.
+
+### Adapter loading
+
+On source, `platform.sh` loads two adapters:
+
+1. **WM adapter** from `lib/adapters/wm/<KALL_WM>.sh` (falls back to `generic.sh`)
+2. **Notify adapter** from `lib/adapters/notify/` -- selects `macos.sh` on Darwin, `libnotify.sh` if `notify-send` exists, or `generic.sh` as fallback
+
+### Functions
+
+#### `clipboard_copy`
+
+Copy stdin to the system clipboard. Dispatches based on `KALL_SESSION`:
+
+| Session | Tool |
+|---|---|
+| `wayland` | `wl-copy` |
+| `x11` | `xclip -selection clipboard` |
+| `darwin` | `pbcopy` |
+
+```bash
+echo "text to copy" | clipboard_copy
+```
+
+#### `clipboard_paste`
+
+Paste the system clipboard contents to stdout.
+
+| Session | Tool |
+|---|---|
+| `wayland` | `wl-paste` |
+| `x11` | `xclip -selection clipboard -o` |
+| `darwin` | `pbpaste` |
+
+```bash
+local content
+content="$(clipboard_paste)"
+```
+
+#### `screenshot_full PATH`
+
+Take a full-screen screenshot and save to PATH.
+
+| Session | Tool |
+|---|---|
+| `wayland` | `grim "$output"` |
+| `x11` | `maim "$output"` |
+| `darwin` | `screencapture "$output"` |
+
+#### `screenshot_area PATH`
+
+Take an area-selection screenshot (user draws a rectangle) and save to PATH.
+
+| Session | Tool |
+|---|---|
+| `wayland` | `grim -g "$(slurp)" "$output"` |
+| `x11` | `maim -s "$output"` |
+| `darwin` | `screencapture -s "$output"` |
+
+#### `screenshot_window PATH`
+
+Take a screenshot of the active window and save to PATH.
+
+| Session | Tool |
+|---|---|
+| `wayland` | `grim -g <geometry>` (via `hyprctl activewindow`) or full screen fallback |
+| `x11` | `maim -i "$(xdotool getactivewindow)"` |
+| `darwin` | `screencapture -w "$output"` |
+
+#### `set_wallpaper PATH`
+
+Set the desktop wallpaper to the image at PATH.
+
+| Session | Tool |
+|---|---|
+| `wayland` | `swww img "$path"` |
+| `x11` | `feh --bg-fill "$path"` |
+| `darwin` | `osascript` (Finder AppleScript) |
+
+#### `open_url URL`
+
+Open a URL in the default browser.
+
+| OS | Tool |
+|---|---|
+| `darwin` | `open "$url"` |
+| `linux` | `xdg-open "$url"` |
+
+#### `lock_screen`
+
+Lock the screen. Delegates to the `wm_lock` function provided by the loaded WM adapter.
+
+---
+
+## theme.sh
+
+Palette loading with wallbash color extraction. Sources automatically via auto-load behavior at the bottom of the file.
+
+### Exported variables
+
+After theme loading, these color variables are available:
+
+| Variable | Palette key | Semantic role |
+|---|---|---|
+| `KALL_COLOR_MAIN_BG` | `colors.main_bg` | Primary background |
+| `KALL_COLOR_MAIN_FG` | `colors.main_fg` | Primary foreground / text |
+| `KALL_COLOR_MAIN_BR` | `colors.main_br` | Border and accent color |
+| `KALL_COLOR_MAIN_EX` | `colors.main_ex` | Extra accent (highlights, badges) |
+| `KALL_COLOR_SELECT_BG` | `colors.select_bg` | Selected item background |
+| `KALL_COLOR_SELECT_FG` | `colors.select_fg` | Selected item foreground |
+| `KALL_COLOR_URGENT_BG` | `colors.urgent_bg` | Urgent / error background |
+| `KALL_COLOR_URGENT_FG` | `colors.urgent_fg` | Urgent / error foreground |
+
+### Functions
+
+#### `load_theme [PALETTE_NAME]`
+
+Load a named palette from `themes/palettes/<name>.yml` and export `KALL_COLOR_*` variables. Falls back to `catppuccin-mocha` if the requested palette is not found. Returns exit code 1 if even the fallback is missing or `yq` is not installed.
+
+#### `generate_wallbash WALLPAPER_PATH`
+
+Extract dominant colors from a wallpaper image and set `KALL_COLOR_*` variables. Uses ImageMagick color quantization. Returns exit code 1 on failure.
+
+#### `list_palettes`
+
+Print available palette names to stdout, one per line. Scans `themes/palettes/` and strips path and `.yml` extension.
+
+---
+
+## notify.sh
+
+Notification convenience wrappers that delegate to `_notify_send()` from the loaded notify adapter.
+
+### Functions
+
+#### `notify TITLE [BODY]`
+
+Send a standard notification with a 3-second auto-dismiss timeout.
+
+```bash
+notify "Screenshot" "Saved to ~/Pictures/screenshot.png"
+```
+
+#### `notify_critical TITLE [BODY]`
+
+Send a critical/urgent notification that does not auto-dismiss.
+
+```bash
+notify_critical "Battery Low" "10% remaining"
+```
+
+#### `notify_with_icon TITLE [BODY] [ICON]`
+
+Send a notification with a custom icon path and 3-second timeout.
+
+```bash
+notify_with_icon "Clipboard" "Copied to clipboard" "/usr/share/icons/edit-copy.svg"
+```
+
+### Adapter dispatch
+
+| Adapter | Loaded when | Tool |
+|---|---|---|
+| `macos.sh` | `KALL_OS == darwin` | `osascript` (Notification Center) |
+| `libnotify.sh` | `notify-send` is available | `notify-send` |
+| `generic.sh` | Fallback | `echo` to stderr |
+
+---
+
+## keybinds.sh
+
+Normalized keybinding translation for multiple window managers.
+
+### Constants
+
+| Constant | Value | Description |
+|---|---|---|
+| `KALL_KEYBIND_BLOCK_START` | `# >>> kall keybinds >>>` | Start marker for injected keybind blocks |
+| `KALL_KEYBIND_BLOCK_END` | `# <<< kall keybinds <<<` | End marker for injected keybind blocks |
+
+### Functions
+
+#### `_translate_keybind WM MODS_CSV KEY COMMAND`
+
+Convert a generic keybinding to WM-specific syntax. Returns the translated binding as a string.
+
+Parameters:
+- `WM` -- target WM: `hyprland`, `i3`, `sway`, `bspwm`, `awesome`, `skhd`
+- `MODS_CSV` -- comma-separated modifiers: `mod,shift` or `mod`
+- `KEY` -- the key to bind: `e`, `Return`, `1`
+- `COMMAND` -- the full command: `kall power`
+
+```bash
+_translate_keybind hyprland "mod,shift" "e" "kall power"
+# Output: bind = $mainMod SHIFT, E, exec, kall power
+
+_translate_keybind i3 "mod,shift" "e" "kall power"
+# Output: bindsym $mod+Shift+e exec kall power
+
+_translate_keybind bspwm "mod,shift" "e" "kall power"
+# Output:
+# super + shift + e
+# 	kall power
+
+_translate_keybind awesome "mod,shift" "e" "kall power"
+# Output: awful.key({ modkey, "Shift" }, "e", function() awful.spawn("kall power") end)
+
+_translate_keybind skhd "mod,shift" "e" "kall power"
+# Output: shift + cmd - e : kall power
+```
+
+For unrecognized WMs, returns a comment: `# kall power (bind mod,shift + e)`
+
+#### `inject_keybinds CONFIG_FILE KEYBINDS...`
+
+Inject keybinding lines between block markers in the given config file.
+
+#### `remove_keybinds CONFIG_FILE`
+
+Remove everything between block markers in the given config file.

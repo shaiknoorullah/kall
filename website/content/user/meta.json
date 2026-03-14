@@ -1,4 +1,4 @@
 {
   "title": "User Guide",
-  "pages": ["index"]
+  "pages": ["getting-started", "configuration", "modules", "keybindings", "themes", "troubleshooting", "faq"]
 }

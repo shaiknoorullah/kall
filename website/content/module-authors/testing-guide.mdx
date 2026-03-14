@@ -1,0 +1,325 @@
+---
+title: Testing Guide
+description: BATS test infrastructure, mock system, assertion helpers, and writing tests for modules.
+---
+
+Every kall module must have a corresponding test file. CI enforces this -- a module without `tests/test_<name>.bats` fails the build. This guide covers the BATS framework, the shared test infrastructure in `tests/test_helper/common.bash`, the mock system, assertion helpers, and how to write effective tests.
+
+## BATS setup
+
+kall uses [BATS](https://github.com/bats-core/bats-core) (Bash Automated Testing System) for all tests. BATS provides a simple syntax for defining test cases and integrates with standard assertion libraries.
+
+### Installing BATS
+
+```bash
+# Arch Linux
+pacman -S bash-bats
+
+# macOS
+brew install bats-core
+
+# Ubuntu/Debian
+apt install bats
+```
+
+### Test runner
+
+The `tests/run_tests.sh` script handles test execution:
+
+```bash
+# Run all tests
+./tests/run_tests.sh
+
+# Run specific test file(s)
+./tests/run_tests.sh tests/test_clipboard.bats
+
+# Or use bats directly
+bats tests/test_clipboard.bats
+```
+
+The test runner automatically installs `bats-support` and `bats-assert` helper libraries into `tests/test_helper/` if they are missing.
+
+## Test infrastructure
+
+All test files share a common setup and teardown through `tests/test_helper/common.bash`.
+
+### Project paths
+
+Three path variables are set at the top of `common.bash`:
+
+```bash
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+LIB_DIR="$PROJECT_ROOT/lib"
+MOCKS_DIR="$PROJECT_ROOT/tests/test_helper/mocks"
+```
+
+### common_setup
+
+Call `common_setup` from your test file's `setup()` function. It creates a fully isolated environment for each test:
+
+```bash
+setup() {
+  common_setup
+}
+```
+
+What `common_setup` does:
+
+1. **Creates an isolated temp directory** (`TEST_TEMP`) for test artifacts
+2. **Initializes mock tracking** -- creates `MOCK_LOG` for recording mock calls
+3. **Sets up menu mock files** -- creates `MENU_MOCK_OUTPUT`, `MENU_MULTI_OUTPUT`, and `MENU_CALL_COUNT`
+4. **Redirects HOME** to `$TEST_TEMP/home` to prevent tests from reading/writing the developer's real config
+5. **Redirects XDG directories** to temp paths (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME`)
+6. **Prepends mock directory to PATH** so mock binaries shadow real platform tools
+
+Key environment variables after `common_setup`:
+
+| Variable | Value | Purpose |
+|---|---|---|
+| `TEST_TEMP` | Unique temp directory | Root of test sandbox |
+| `MOCK_LOG` | `$TEST_TEMP/mock_calls.log` | Records all mock invocations |
+| `MENU_MOCK_OUTPUT` | `$TEST_TEMP/menu_output` | Controls single-call menu return value |
+| `MENU_MULTI_OUTPUT` | `$TEST_TEMP/menu_multi_output` | Controls multi-call menu return values |
+| `MENU_CALL_COUNT` | `$TEST_TEMP/menu_call_count` | Tracks menu invocation count |
+| `HOME` | `$TEST_TEMP/home` | Isolated home directory |
+| `REAL_HOME` | Original `$HOME` | Preserved in case tests need it |
+
+### common_teardown
+
+Call `common_teardown` from your test file's `teardown()` function. It removes the temp directory:
+
+```bash
+teardown() {
+  common_teardown
+}
+```
+
+## Mock system
+
+Mocks are executable scripts in `tests/test_helper/mocks/` that simulate platform tools. They shadow real binaries because `MOCKS_DIR` is prepended to `PATH` during setup.
+
+### How mocks work
+
+Each mock is a bash script that:
+
+1. Logs its name and arguments to `MOCK_LOG`
+2. Returns a controlled exit code
+3. Optionally writes controlled output to stdout
+
+Example mock (`tests/test_helper/mocks/hyprctl`):
+
+```bash
+#!/usr/bin/env bash
+echo "hyprctl $*" >> "${MOCK_LOG:-/dev/null}"
+```
+
+### Available mocks
+
+| Category | Mocks |
+|---|---|
+| Clipboard | `xclip`, `wl-copy`, `wl-paste`, `pbcopy`, `pbpaste` |
+| Screenshot | `grim`, `slurp`, `maim`, `screencapture` |
+| Window manager | `hyprctl`, `i3-msg`, `swaymsg`, `xdotool`, `xrandr`, `bspc` |
+| Lock screen | `hyprlock`, `swaylock`, `slock`, `i3lock` |
+| Wallpaper | `swww`, `feh` |
+| Notification | `notify-send`, `osascript` |
+| Menu backends | `rofi` |
+| System | `open`, `xdg-open`, `playerctl`, `pkill`, `pmset` |
+| Data tools | `yq` |
+
+### Creating new mocks
+
+If your module depends on a tool that does not have a mock, create one in `tests/test_helper/mocks/`:
+
+```bash
+#!/usr/bin/env bash
+# tests/test_helper/mocks/my-tool
+MOCK_NAME="my-tool"
+echo "$MOCK_NAME $*" >> "${MOCK_LOG:-/dev/null}"
+```
+
+Make it executable: `chmod +x tests/test_helper/mocks/my-tool`
+
+### MENU_MOCK_OUTPUT
+
+The primary mechanism for controlling menu selections in tests. Write the expected selection to the `MENU_MOCK_OUTPUT` file before running the module:
+
+```bash
+@test "power module shows shutdown option" {
+  echo "Shutdown" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/power/power.sh"
+  assert_success
+}
+```
+
+### Multi-call menu output
+
+For modules that show multiple sequential menus, use `set_menu_outputs`:
+
+```bash
+@test "power module confirms before shutdown" {
+  set_menu_outputs "Shutdown" "Yes"
+  run bash "$PROJECT_ROOT/modules/power/power.sh"
+  assert_success
+  assert_mock_called_with "systemctl" "poweroff"
+}
+```
+
+The `set_menu_outputs` function writes each argument as a line to `MENU_MULTI_OUTPUT` and resets the call counter.
+
+## Mock assertion helpers
+
+`common.bash` provides four assertion functions for verifying mock interactions:
+
+### assert_mock_called
+
+Assert that a mock was called at least once during the test:
+
+```bash
+assert_mock_called "xclip"
+assert_mock_called "notify-send"
+```
+
+### assert_mock_not_called
+
+Assert that a mock was never called:
+
+```bash
+assert_mock_not_called "xclip"
+assert_mock_not_called "wl-copy"
+```
+
+### assert_mock_called_with
+
+Assert that a mock was called with specific arguments:
+
+```bash
+assert_mock_called_with "systemctl" "poweroff"
+assert_mock_called_with "xclip" "-selection clipboard"
+```
+
+### get_mock_calls
+
+Return all calls to a specific mock for custom assertions:
+
+```bash
+local calls
+calls="$(get_mock_calls "notify-send")"
+```
+
+## Platform testing
+
+Test the same module behavior under different session types by setting `XDG_SESSION_TYPE`:
+
+```bash
+@test "clipboard uses xclip on x11" {
+  export XDG_SESSION_TYPE=x11
+  echo "some text" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/clipboard/clipboard.sh"
+  assert_success
+  assert_mock_called "xclip"
+  assert_mock_not_called "wl-copy"
+}
+
+@test "clipboard uses wl-copy on wayland" {
+  export XDG_SESSION_TYPE=wayland
+  echo "some text" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/clipboard/clipboard.sh"
+  assert_success
+  assert_mock_called "wl-copy"
+  assert_mock_not_called "xclip"
+}
+```
+
+Run tests under a specific session type from the command line:
+
+```bash
+XDG_SESSION_TYPE=wayland bats tests/test_clipboard.bats
+XDG_SESSION_TYPE=x11 bats tests/test_clipboard.bats
+```
+
+## Example: Complete test file
+
+Here is a complete test file for a hypothetical `quicknote` module:
+
+```bash
+#!/usr/bin/env bats
+
+load test_helper/common
+
+setup() {
+  common_setup
+}
+
+teardown() {
+  common_teardown
+}
+
+@test "quicknote loads without errors" {
+  echo "My note text" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/quicknote/quicknote.sh"
+  assert_success
+}
+
+@test "quicknote handles empty selection (user cancelled)" {
+  echo "" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/quicknote/quicknote.sh"
+  assert_success
+}
+
+@test "quicknote copies to clipboard on x11" {
+  export XDG_SESSION_TYPE=x11
+  echo "My note text" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/quicknote/quicknote.sh"
+  assert_success
+  assert_mock_called "xclip"
+  assert_mock_not_called "wl-copy"
+}
+
+@test "quicknote copies to clipboard on wayland" {
+  export XDG_SESSION_TYPE=wayland
+  echo "My note text" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/quicknote/quicknote.sh"
+  assert_success
+  assert_mock_called "wl-copy"
+  assert_mock_not_called "xclip"
+}
+
+@test "quicknote sends notification after saving" {
+  echo "My note text" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/quicknote/quicknote.sh"
+  assert_success
+  assert_mock_called "notify-send"
+}
+
+@test "quicknote confirms before deleting a note" {
+  set_menu_outputs "Delete note" "Yes"
+  run bash "$PROJECT_ROOT/modules/quicknote/quicknote.sh"
+  assert_success
+}
+```
+
+## Running tests
+
+```bash
+# Full suite
+./tests/run_tests.sh
+
+# Single file
+bats tests/test_quicknote.bats
+
+# Verbose output
+bats --verbose-run tests/test_quicknote.bats
+
+# Under a specific session type
+XDG_SESSION_TYPE=wayland bats tests/test_quicknote.bats
+```
+
+## Test naming conventions
+
+- Test files: `tests/test_<module-name>.bats`
+- Test names describe expected behavior, not implementation details:
+  - Good: `"clipboard copies text on x11"`
+  - Bad: `"clipboard calls xclip with -selection clipboard"`
+- Group related tests: put platform-specific tests after general tests
+- Always test both success and failure paths

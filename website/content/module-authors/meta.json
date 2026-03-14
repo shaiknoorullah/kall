@@ -1,4 +1,4 @@
 {
   "title": "Module Authors",
-  "pages": ["index"]
+  "pages": ["authoring-guide", "module-yml-spec", "lib-api", "testing-guide", "best-practices"]
 }

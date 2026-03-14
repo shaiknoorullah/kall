@@ -1,0 +1,263 @@
+---
+title: Best Practices
+description: Guidelines for writing robust, cross-platform, testable kall modules.
+---
+
+This page collects the practices that lead to high-quality kall modules. Following these guidelines ensures your module works across platforms, backends, and session types, passes CI, and provides a good user experience.
+
+## Never call platform tools directly
+
+This is the most important rule in kall module development. Modules must never invoke platform-specific binaries directly. Always use the corresponding lib function.
+
+**Wrong:**
+
+```bash
+# Direct tool calls -- WILL FAIL CI
+echo "$text" | xclip -selection clipboard
+grim -g "$(slurp)" /tmp/screenshot.png
+notify-send "Done" "Screenshot saved"
+hyprctl dispatch fullscreen
+```
+
+**Correct:**
+
+```bash
+# Lib function calls -- dispatches to the right tool automatically
+echo "$text" | clipboard_copy
+screenshot_area "/tmp/screenshot.png"
+notify "Done" "Screenshot saved"
+wm_fullscreen  # from the WM adapter
+```
+
+CI enforces this via the `validate` job, which scans all module scripts for forbidden tool names (`xclip`, `wl-copy`, `wl-paste`, `grim`, `maim`, `hyprctl`, `i3-msg`, `i3lock`, `swaymsg`, `pbcopy`, `pbpaste`, `screencapture`, `xdotool`, `xrandr`). Any match outside a comment fails the build (invariant INV-MOD-03).
+
+The lib functions handle session detection internally. `clipboard_copy` calls `xclip` on X11, `wl-copy` on Wayland, and `pbcopy` on macOS. Your module never needs to know which session is active.
+
+## Always support X11 and Wayland
+
+If your module declares `platforms.linux.x11: true` and `platforms.linux.wayland: true` in `module.yml`, it must work correctly under both session types. Since you are using lib functions (which handle dispatch), this is usually automatic. But you should still test both:
+
+```bash
+@test "module works on x11" {
+  export XDG_SESSION_TYPE=x11
+  echo "selection" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+}
+
+@test "module works on wayland" {
+  export XDG_SESSION_TYPE=wayland
+  echo "selection" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+}
+```
+
+If your module genuinely cannot work on one session type (e.g., it requires `xrandr` which is X11-only), set the corresponding platform flag to `false` and document why.
+
+## Use menu_supports for capability-aware degradation
+
+Not all backends support all features. Use `menu_supports` to check capabilities before using them:
+
+```bash
+if menu_supports "icons"; then
+  items="  Lock screen\n  Shutdown\n  Reboot"
+else
+  items="Lock screen\nShutdown\nReboot"
+fi
+
+if menu_supports "preview"; then
+  selected="$(echo -e "$items" | menu_dmenu "Files" --preview "bat --color=always {}")"
+else
+  selected="$(echo -e "$items" | menu_dmenu "Files")"
+fi
+```
+
+Common capability names:
+
+| Capability | Backends that support it |
+|---|---|
+| `icons` | rofi, wofi, fuzzel |
+| `preview` | fzf, rofi (with script mode) |
+| `columns` | rofi |
+| `images` | rofi (with image support), fzf (via chafa in preview) |
+
+When a capability is not supported, degrade gracefully -- show plain text items instead of icon-prefixed ones, skip the preview pane, use single-column layout.
+
+## Use layout hints for rich UX
+
+Layout hints in `module.yml` tell backends how to render the menu. They are optional and backends ignore hints they do not support.
+
+```yaml
+layout_hints:
+  columns: 2
+  icon_size: 24
+  show_preview: true
+  preview: "chafa --size 40x20 {}"
+```
+
+### Preview pipelines
+
+Preview pipelines are especially useful with the fzf backend. The `{}` placeholder is replaced with the currently highlighted item.
+
+Common preview commands:
+
+| Content type | Preview command | Requires |
+|---|---|---|
+| Images | `chafa --size 40x20 {}` | chafa |
+| Code files | `bat --color=always --style=numbers {}` | bat |
+| Directory trees | `eza --tree --level=3 --icons --color=always {}` | eza |
+| JSON | `jq '.' {} \| bat --color=always -l json` | jq, bat |
+| Markdown | `glow -s dark {}` | glow |
+| Man pages | `man {} 2>/dev/null \| head -40` | man |
+
+### Column layout
+
+For modules with many short items (like emoji or glyph pickers), multi-column layout improves scannability:
+
+```yaml
+layout_hints:
+  columns: 4
+  icon_size: 16
+```
+
+### Icon sizes
+
+Standard sizes:
+
+| Size | Use case |
+|---|---|
+| `16` | Dense lists with many items |
+| `24` | Default for most modules |
+| `32` | Grid layouts, visual browsers |
+| `48` | Image-heavy modules (wallpaper, emoji) |
+
+## Error handling
+
+### Use log functions
+
+Never write errors to stderr directly. Use the structured logging functions:
+
+**Wrong:**
+
+```bash
+echo "ERROR: file not found" >&2
+echo "Warning: falling back to default" >&2
+```
+
+**Correct:**
+
+```bash
+log_error "my-module: file not found: $filepath"
+log_warn "my-module: falling back to default engine"
+```
+
+### Prefix log messages
+
+Include the module name in log messages for easy filtering:
+
+```bash
+log_info "websearch: searching with engine=$engine query=$query"
+log_warn "websearch: autocomplete API returned empty response"
+log_error "websearch: failed to open browser"
+```
+
+### Handle missing dependencies gracefully
+
+If your module depends on an optional tool, check for it and degrade gracefully:
+
+```bash
+if command -v chafa &>/dev/null; then
+  preview_cmd="chafa --size 40x20 {}"
+else
+  preview_cmd="file {}"
+  log_debug "my-module: chafa not found, using basic preview"
+fi
+```
+
+### Never use log_fatal in modules
+
+`log_fatal` calls `exit 1` and should be reserved for the framework core. In modules, use `log_error` and return a non-zero exit code:
+
+```bash
+if [[ ! -f "$config_file" ]]; then
+  log_error "my-module: config file not found: $config_file"
+  exit 1
+fi
+```
+
+### Handle empty selections
+
+When the user presses Escape or closes the menu without selecting, `menu_dmenu` returns an empty string. Always handle this case:
+
+```bash
+selected="$(echo -e "$items" | menu_dmenu "My Module")"
+[[ -z "$selected" ]] && exit 0
+```
+
+Exit cleanly with code 0 -- an empty selection is not an error.
+
+## Testing both sessions in BATS
+
+The minimum test coverage for a cross-platform module includes:
+
+1. **Basic execution** -- module loads and runs without error
+2. **Empty selection** -- user cancels the menu
+3. **X11 session** -- correct platform tool is called
+4. **Wayland session** -- correct platform tool is called
+5. **Side effects** -- clipboard, notifications, file writes happen correctly
+6. **Multi-step menus** -- if the module has confirmation dialogs or nested menus
+
+```bash
+@test "module works on x11" {
+  export XDG_SESSION_TYPE=x11
+  echo "action" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+  assert_mock_called "xclip"
+  assert_mock_not_called "wl-copy"
+}
+
+@test "module works on wayland" {
+  export XDG_SESSION_TYPE=wayland
+  echo "action" > "$MENU_MOCK_OUTPUT"
+  run bash "$PROJECT_ROOT/modules/my-module/my-module.sh"
+  assert_success
+  assert_mock_called "wl-copy"
+  assert_mock_not_called "xclip"
+}
+```
+
+## Declare all dependencies
+
+List every external tool your module uses in `module.yml` under `requires.adapter_tools`:
+
+```yaml
+requires:
+  adapter_tools:
+    x11: [xclip, maim, xdotool]
+    wayland: [wl-copy, grim, slurp]
+    darwin: [pbcopy]
+```
+
+This allows `kall doctor` to check for missing tools and the installer to resolve dependencies at install time.
+
+## Keep modules focused
+
+Each module should do one thing well. If a module grows beyond 200 lines or handles multiple unrelated tasks, consider splitting it into separate modules. A focused module is easier to test, easier to maintain, and gives users more granular control over what they install.
+
+## Follow the commit convention
+
+When submitting a new module, use the conventional commit format:
+
+```
+feat(module/my-module): add my-module with clipboard integration
+```
+
+When fixing a bug in an existing module:
+
+```
+fix(module/clipboard): handle empty clipboard on wayland
+```
+
+The full type and area lists are documented in the [CI/CD](/docs/contributors/ci-cd) page.
