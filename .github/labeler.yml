@@ -1,31 +1,39 @@
 area/module:
-  - modules/**
+  - changed-files:
+    - any-glob-to-any-file: 'modules/**'
 
 area/backend:
-  - kall/**
+  - changed-files:
+    - any-glob-to-any-file: 'backends/**'
 
 area/plugin:
-  - modules/*/plugins/**
+  - changed-files:
+    - any-glob-to-any-file: 'plugins/**'
 
 area/lib:
-  - lib/**
+  - changed-files:
+    - any-glob-to-any-file: 'lib/**'
 
 area/theme:
-  - themes/**
+  - changed-files:
+    - any-glob-to-any-file: 'themes/**'
 
 area/installer:
-  - install*
-  - scripts/install*
+  - changed-files:
+    - any-glob-to-any-file: 'installer/**'
 
 area/cli:
-  - kall
+  - changed-files:
+    - any-glob-to-any-file: 'kall'
 
 area/docs:
-  - docs/**
-  - "*.md"
+  - changed-files:
+    - any-glob-to-any-file: 'website/**'
 
 area/ci:
-  - .github/**
+  - changed-files:
+    - any-glob-to-any-file: '.github/**'
 
 area/schema:
-  - schemas/**
+  - changed-files:
+    - any-glob-to-any-file: 'schemas/**'
