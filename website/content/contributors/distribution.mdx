@@ -1,0 +1,201 @@
+---
+title: Distribution
+description: Distribution channels, release pipeline, versioning strategy, and versioned documentation.
+---
+
+kall ships as bash scripts and assets with no compiled binaries. Distribution covers five channels, a tag-triggered release pipeline, semver versioning, and versioned documentation powered by fumadocs. This page explains how releases are built, published, and documented.
+
+## Distribution Channels
+
+kall is available through multiple channels, each targeting a different installation preference:
+
+| Channel | Install command | Target version | Notes |
+|---|---|---|---|
+| curl installer | `curl -fsSL kall.sh/install \| bash` | v2.0 | Interactive wizard with module/theme selection |
+| AUR | `yay -S kall` | v2.0 | Arch Linux, post-install runs `kall setup` |
+| Homebrew | `brew install shaiknoorullah/tap/kall` | v2.0 | macOS (and Linux via Homebrew) |
+| GitHub Release | `.tar.gz` from Releases page | v2.0 | Manual download and extraction |
+| Debian/Ubuntu (PPA) | `apt install kall` | v2.1+ (future) | Planned for a later release |
+
+All distribution packages contain the same contents: bash scripts, YAML config files, palette definitions, and theme assets. No compilation step is involved.
+
+### curl Installer
+
+The primary installation method. Running the curl command launches an interactive wizard that:
+
+1. **Detects the system** — OS, display server, window manager, package manager, shell
+2. **Bootstraps framework dependencies** — installs a menu launcher (user picks which), `yq`, and `jq`
+3. **Module selection** — presents modules grouped by category with presets (minimal: 5, standard: 15, full: 26)
+4. **Theme selection** — pick palette and launcher style, option to enable wallbash
+5. **Dependency resolution** — aggregates deps from selected modules, shows missing, asks to install
+6. **Install and configure** — clones the repo, generates `kall.yml`, generates theme files, symlinks the CLI, copies user configs
+7. **Summary** — prints what was installed, suggested keybindings for the detected WM, and `kall doctor` results
+
+A non-interactive mode is available for scripted installs and CI:
+
+```bash
+curl -fsSL kall.sh/install | bash -s -- \
+  --non-interactive \
+  --preset standard \
+  --backend rofi \
+  --theme catppuccin-mocha \
+  --style style_1 \
+  --no-wallbash
+```
+
+#### Package Manager Detection
+
+The installer auto-detects the system's package manager:
+
+| Distro | Package manager | Elevation | AUR helper |
+|---|---|---|---|
+| Arch Linux | pacman | `sudo pacman -S` | auto-detects paru > yay > pacman |
+| Ubuntu/Debian | apt | `sudo apt install` | n/a |
+| Fedora | dnf | `sudo dnf install` | n/a |
+| macOS | Homebrew | `brew install` (no sudo) | n/a |
+
+#### Elevation Handling
+
+The installer enforces strict elevation rules per invariant INV-INS-01:
+
+- Never runs as root
+- Uses `sudo` only for package installation commands
+- Prints exactly what it will install and asks for confirmation before the first `sudo` call
+- If `sudo` is unavailable or the user denies, prints manual install commands and continues
+- On macOS, Homebrew does not require sudo
+
+#### Missing Package Handling
+
+When a required dependency is not in the detected package manager's repositories, the installer prints a warning with manual install instructions (build from source URL, alternative package name) and continues. `kall doctor` shows any unresolved dependencies after installation.
+
+### AUR Package
+
+The AUR package installs the full kall source tree. After installation, users run `kall setup` to select modules and pick a theme. The setup wizard is the same as steps 3-7 of the curl installer.
+
+### Homebrew Formula
+
+The Homebrew formula installs kall via the `shaiknoorullah/tap` tap. It handles all dependencies through Homebrew's dependency system. Post-install runs `kall setup`.
+
+### GitHub Release
+
+Each tagged release publishes a `.tar.gz` archive containing the full source tree. Users download, extract, and run `./install.sh` from the extracted directory. This is the fallback for systems without a supported package manager.
+
+### Debian/Ubuntu (Future)
+
+A `.deb` package distributed through a PPA is planned for v2.1+. This will use the standard Debian packaging workflow with `dpkg-buildpackage`.
+
+## Release Pipeline
+
+Releases are automated through the `release.yml` GitHub Actions workflow, triggered by pushing a version tag.
+
+### Tag Trigger
+
+When a tag matching `v*` is pushed (e.g., `v2.1.0`), the release pipeline starts:
+
+```
+git tag v2.1.0
+git push origin v2.1.0
+```
+
+### Pipeline Steps
+
+1. **Full CI** — runs the complete `ci.yml` suite (lint, test matrix, validate). If any job fails, the release is aborted.
+
+2. **Changelog generation** — generates `CHANGELOG.md` entries from conventional commits since the previous tag. Commits are grouped by area (Modules, Backends, Plugins, Lib, Theme, etc.).
+
+3. **RELEASE.md generation** — creates a user-facing release summary. Only `feat`, `fix`, and `breaking` commit types appear. Internal changes (`refactor`, `test`, `chore`, `ci`) are excluded.
+
+4. **GitHub Release** — creates a release on GitHub with:
+   - The version tag as the release name
+   - `RELEASE.md` content as the release body
+   - A `.tar.gz` tarball of the source tree attached as an asset
+
+5. **AUR push** — updates the `PKGBUILD` in the AUR repository with the new version number and SHA256 hash, then pushes.
+
+6. **Homebrew push** — updates the formula in `shaiknoorullah/homebrew-tap` with the new version URL and SHA256 hash, then pushes.
+
+7. **Docs deploy** — deploys the fumadocs site with updated version information.
+
+### Release Artifacts
+
+Each release produces:
+
+| Artifact | Contents |
+|---|---|
+| `kall-<version>.tar.gz` | Full source tree (bash scripts, palettes, schemas, assets) |
+| `CHANGELOG.md` | Cumulative changelog for all versions |
+| `RELEASE.md` | User-facing summary for this release only |
+
+## Versioning
+
+kall follows semantic versioning (semver). The version number has three components: `major.minor.patch`.
+
+### Version Levels
+
+| Level | Format | When | Example |
+|---|---|---|---|
+| Patch | `2.0.x` | Bug fixes, documentation updates, typos | Fix clipboard on Ubuntu 24.04 |
+| Minor | `2.x.0` | New modules, new lib functions, new themes, non-breaking additions | Add weather module |
+| Major | `x.0.0` | Breaking changes to `module.yml` format, lib API, CLI interface, or `kall.yml` keys | Rename kall.yml keys |
+
+### What Counts as Breaking
+
+A change is breaking if it requires users or module authors to modify their existing configuration or code:
+
+- Renaming or removing keys in `kall.yml`
+- Changing the `module.yml` contract (required fields, field semantics)
+- Renaming or removing `lib/` API functions
+- Changing CLI command names or argument semantics
+- Changing the palette YAML format
+
+Non-breaking additions (new optional keys, new modules, new lib functions) are minor version bumps even if they add significant functionality.
+
+### Version in kall.yml
+
+The user's `kall.yml` includes a version field:
+
+```yaml
+version: "2.0.0"
+```
+
+This allows `kall doctor` to detect config files from older versions and suggest migration steps.
+
+## Versioned Documentation
+
+The documentation site uses fumadocs with version support. When a new major version ships, the documentation is versioned.
+
+### Version Behavior
+
+| Scenario | URL | What is shown |
+|---|---|---|
+| Current version | `/docs` | Latest major version documentation |
+| Previous version | `/docs/v2` | Archived v2.x documentation |
+| Version switcher | Dropdown in docs nav | Lists all available versions |
+
+### Version Switcher
+
+The fumadocs version switcher appears as a dropdown in the documentation navigation. Users can switch between major versions to see documentation relevant to their installed version.
+
+### Migration Guides
+
+When a major version bump happens, a migration guide is published:
+
+- `v2-to-v3.mdx` — covers all breaking changes, before/after examples, and step-by-step migration instructions
+
+Migration guides are linked prominently from the new version's getting started page and from the release notes.
+
+### LTS Branches
+
+Long-term support branches are deferred to post-v2.0. When a major version bump happens, the previous major will get a maintenance branch (`v2.x`) for critical bugfixes. The LTS policy will be defined at that time.
+
+## Docs Deployment
+
+The documentation site is deployed via the `docs-deploy.yml` workflow, triggered on push to main. It builds the fumadocs Next.js application and deploys it to the hosting provider.
+
+The docs site structure under `website/content/` is organized into three tiers:
+
+- `content/user/` — getting started, configuration, module catalog, keybindings, themes, troubleshooting, FAQ
+- `content/module-authors/` — authoring guide, module.yml spec, lib API reference, testing guide
+- `content/contributors/` — architecture, platform adapters, module system, backend adapters, theme engine, testing strategy, CI/CD, distribution
+
+All architectural and design documents live as MDX pages in the fumadocs site. There are no orphan markdown files outside the website content structure.
