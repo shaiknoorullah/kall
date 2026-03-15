@@ -1,26 +1,11 @@
-"use client";
-import { useEffect, useRef } from "react";
-import { gsap } from "@/lib/gsap";
 import { CopyButton } from "./copy-button";
 import Link from "next/link";
 
 export function InstallCTA() {
-  const sectionRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!sectionRef.current) return;
-    const ctx = gsap.context(() => {
-      gsap.from(sectionRef.current!, {
-        y: 40, opacity: 0, duration: 0.8,
-        scrollTrigger: { trigger: sectionRef.current, start: "top 85%" },
-      });
-    }, sectionRef);
-    return () => ctx.revert();
-  }, []);
-
   return (
-    <section ref={sectionRef} className="relative px-6 py-32">
+    <section className="relative px-6 py-24 md:py-32">
       <div className="mx-auto max-w-3xl text-center">
-        <h2 className="mb-4 text-4xl font-bold text-[#CDD6F4] md:text-5xl">Ready to stop duct-taping?</h2>
+        <h2 className="mb-4 text-3xl font-bold text-[#CDD6F4] md:text-5xl">Ready to stop duct-taping?</h2>
         <p className="mb-8 text-lg text-[#A6ADC8]">One command. Pick your modules. Add keybindings. Done.</p>
         <div className="mb-8 flex justify-center">
           <CopyButton text="curl -fsSL kall.sh/install | bash" />

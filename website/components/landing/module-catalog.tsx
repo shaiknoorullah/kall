@@ -1,6 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { gsap } from "@/lib/gsap";
+import { useState } from "react";
 
 const categories = {
   System: [
@@ -35,53 +34,33 @@ const categories = {
   ],
 };
 
-const catKeys = Object.keys(categories) as (keyof typeof categories)[];
+type Category = keyof typeof categories;
+const catKeys = Object.keys(categories) as Category[];
 
 export function ModuleCatalog() {
-  const [active, setActive] = useState<keyof typeof categories>("System");
-  const listRef = useRef<HTMLDivElement>(null);
-  const sectionRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    if (!sectionRef.current) return;
-    const ctx = gsap.context(() => {
-      gsap.from(sectionRef.current!, {
-        y: 60, opacity: 0, duration: 0.8,
-        scrollTrigger: { trigger: sectionRef.current, start: "top 80%" },
-      });
-    }, sectionRef);
-    return () => ctx.revert();
-  }, []);
-
-  useEffect(() => {
-    if (!listRef.current) return;
-    const items = listRef.current.querySelectorAll(".module-item");
-    gsap.fromTo(items, { x: 20, opacity: 0 }, { x: 0, opacity: 1, stagger: 0.05, duration: 0.3, ease: "power2.out" });
-  }, [active]);
+  const [active, setActive] = useState<Category>("System");
 
   return (
-    <section ref={sectionRef} className="relative px-6 py-32">
+    <section className="relative px-6 py-24 md:py-32">
       <div className="mx-auto max-w-5xl">
         <div className="mb-12 text-center">
-          <h2 className="mb-4 text-4xl font-bold text-[#CDD6F4] md:text-5xl">
+          <h2 className="mb-4 text-3xl font-bold text-[#CDD6F4] md:text-5xl">
             26 modules. <span className="text-[#89B4FA]">Zero bloat.</span>
           </h2>
           <p className="text-lg text-[#A6ADC8]">Pick what you need. Ignore the rest. Each one tested on X11, Wayland, and macOS.</p>
         </div>
 
-        {/* Tabs */}
         <div className="mb-8 flex flex-wrap justify-center gap-2">
           {catKeys.map((cat) => (
-            <button key={cat} onClick={() => setActive(cat)} className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${active === cat ? "bg-[#CBA6F7] text-[#1E1E2E]" : "border border-[#313244] text-[#A6ADC8] hover:border-[#585B70] hover:text-[#CDD6F4]"}`}>
+            <button key={cat} onClick={() => setActive(cat)} className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${active === cat ? "bg-[#CBA6F7] text-[#1E1E2E]" : "border border-[#313244] text-[#A6ADC8] hover:border-[#585B70] hover:text-[#CDD6F4]"}`}>
               {cat} <span className="ml-1 text-xs opacity-70">({categories[cat].length})</span>
             </button>
           ))}
         </div>
 
-        {/* Module list */}
-        <div ref={listRef} className="grid gap-3 sm:grid-cols-2">
-          {categories[active].map((m, i) => (
-            <div key={m.name} className="module-item flex items-center gap-3 rounded-xl border border-[#313244]/40 bg-[#181825]/40 px-4 py-3 transition-all duration-300 hover:border-[#CBA6F7]/20 hover:bg-[#181825]/80">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {categories[active].map((m) => (
+            <div key={m.name} className="flex items-center gap-3 rounded-xl border border-[#313244]/40 bg-[#181825]/40 px-4 py-3 transition-all duration-200 hover:border-[#CBA6F7]/20 hover:bg-[#181825]/80">
               <code className="rounded bg-[#313244] px-2 py-0.5 text-xs text-[#CBA6F7]">{m.name}</code>
               <span className="text-sm text-[#A6ADC8]">{m.desc}</span>
             </div>

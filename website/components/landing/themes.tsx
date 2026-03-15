@@ -1,6 +1,4 @@
 "use client";
-import { useEffect, useRef } from "react";
-import { gsap } from "@/lib/gsap";
 
 const palettes = [
   { name: "Catppuccin Mocha", colors: ["#1E1E2E", "#CDD6F4", "#CBA6F7", "#89B4FA", "#A6E3A1"] },
@@ -12,28 +10,16 @@ const palettes = [
 ];
 
 export function Themes() {
-  const sectionRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!sectionRef.current) return;
-    const ctx = gsap.context(() => {
-      gsap.from(".palette-card", {
-        y: 40, opacity: 0, stagger: 0.08, duration: 0.6,
-        scrollTrigger: { trigger: sectionRef.current, start: "top 80%" },
-      });
-    }, sectionRef);
-    return () => ctx.revert();
-  }, []);
-
   return (
-    <section ref={sectionRef} className="relative px-6 py-32">
+    <section className="relative px-6 py-24 md:py-32">
       <div className="mx-auto max-w-5xl">
         <div className="mb-12 text-center">
-          <h2 className="mb-4 text-4xl font-bold text-[#CDD6F4] md:text-5xl">Six palettes. <span className="text-[#F9E2AF]">Or your wallpaper.</span></h2>
+          <h2 className="mb-4 text-3xl font-bold text-[#CDD6F4] md:text-5xl">Six palettes. <span className="text-[#F9E2AF]">Or your wallpaper.</span></h2>
           <p className="text-lg text-[#A6ADC8]">Static palettes ship out of the box. Enable wallbash and your wallpaper becomes your theme.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {palettes.map((p) => (
-            <div key={p.name} className="palette-card group rounded-xl border border-[#313244]/40 bg-[#181825]/40 p-4 transition-all duration-300 hover:border-[#585B70] hover:bg-[#181825]/80">
+            <div key={p.name} className="group rounded-xl border border-[#313244]/40 bg-[#181825]/40 p-4 transition-all duration-300 hover:border-[#585B70] hover:bg-[#181825]/80">
               <div className="mb-3 flex gap-2">
                 {p.colors.map((c, j) => (
                   <div key={j} className="h-8 w-8 rounded-lg transition-transform duration-300 group-hover:scale-110" style={{ backgroundColor: c }} />
